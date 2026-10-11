@@ -80,6 +80,9 @@ public final class BandLiveService extends Service {
             new io.github.miam1ku.mibandoplusbridge.notify.NotifyDedupe();
     private static final io.github.miam1ku.mibandoplusbridge.notify.NotifyReplay HELD_NOTIFICATIONS =
             new io.github.miam1ku.mibandoplusbridge.notify.NotifyReplay();
+    private final java.util.ArrayDeque<String> iconPackages = new java.util.ArrayDeque<>();
+    private final AtomicBoolean iconUploadBusy = new AtomicBoolean();
+    private volatile String iconPackage;
     private static final int NOTICE = 7;
     private static final long INITIAL_BACKOFF_MS = 3_000;
     private static final long MAX_BACKOFF_MS = 30_000;
@@ -417,6 +420,7 @@ public final class BandLiveService extends Service {
                     notificationPayloadLimit());
             io.github.miam1ku.mibandoplusbridge.data.SessionLog.line(context, "NOTIFY_OUT type=" + fitted.getType()
                     + " subtype=" + fitted.getSubtype() + " bytes=" + fitted.getSerializedSize());
+            noteIconPackage(fitted);
             return queue.send(fitted);
         } catch (IllegalArgumentException tooLarge) {
             io.github.miam1ku.mibandoplusbridge.data.SessionLog.line(context, "NOTIFY_DROP reason=too-large");
@@ -458,6 +462,7 @@ public final class BandLiveService extends Service {
                     + " limit=" + notificationPayloadLimit());
             io.github.miam1ku.mibandoplusbridge.data.SessionLog.line(context, "NOTIFY_OUT type=" + fitted.getType()
                     + " subtype=" + fitted.getSubtype() + " bytes=" + fitted.getSerializedSize());
+            noteIconPackage(fitted);
             return queue.send(fitted);
         } catch (IllegalArgumentException tooLarge) {
             io.github.miam1ku.mibandoplusbridge.data.SessionLog.line(context, "NOTIFY_DROP reason=too-large");
@@ -516,6 +521,7 @@ public final class BandLiveService extends Service {
                     command, notificationPayloadLimit());
             io.github.miam1ku.mibandoplusbridge.data.SessionLog.line(this, "NOTIFY_OUT type=" + fitted.getType()
                     + " subtype=" + fitted.getSubtype() + " bytes=" + fitted.getSerializedSize());
+            noteIconPackage(fitted);
             queue.send(fitted).whenComplete((ignored, error) -> {
                 if (error == null) held.succeed();
                 else held.fail(error);
@@ -790,11 +796,11 @@ public final class BandLiveService extends Service {
                                     + " status=" + command.getStatus());
                             if (command.getSubtype() == 16 && command.hasNotification()
                                     && command.getNotification().hasNotificationIconQuery()) {
-                                String pkg = command.getNotification().getNotificationIconQuery().getPackage();
-                                if (pkg != null && !pkg.isBlank()) {
-                                    sendSessionCommand(io.github.miam1ku.mibandoplusbridge.protocol.BandNotificationCommand
-                                            .iconQueryReply(pkg));
-                                }
+                                offerIcon(command.getNotification().getNotificationIconQuery().getPackage());
+                            }
+                            if (command.getSubtype() == 15 && command.hasNotification()
+                                    && command.getNotification().hasNotificationIconRequest()) {
+                                uploadIcon(active, command.getNotification().getNotificationIconRequest());
                             }
                             if (calls != null) calls.onBandCommand(command);
                         }
@@ -1288,6 +1294,108 @@ public final class BandLiveService extends Service {
             startForeground(NOTICE, notice, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE);
             noticeTitle = title;
         }
+    }
+
+    private static void noteIconPackage(nodomain.freeyourgadget.gadgetbridge.proto.xiaomi.XiaomiProto.Command command) {
+        BandLiveService live = instance;
+        if (live == null || command.getType() != 7 || command.getSubtype() != 0
+                || !command.hasNotification() || !command.getNotification().hasNotification2()
+                || !command.getNotification().getNotification2().hasNotification3()) return;
+        String pkg = command.getNotification().getNotification2().getNotification3().getPackage();
+        if (pkg == null || pkg.isBlank() || "phone".equals(pkg)) return;
+        synchronized (live.iconPackages) {
+            live.iconPackages.remove(pkg);
+            live.iconPackages.addLast(pkg);
+            while (live.iconPackages.size() > 32) live.iconPackages.removeFirst();
+        }
+    }
+
+    private void offerIcon(String queried) {
+        String pkg = resolveIconPackage(queried);
+        if (!io.github.miam1ku.mibandoplusbridge.notify.NotificationIcons.available(this, pkg)) {
+            io.github.miam1ku.mibandoplusbridge.data.SessionLog.line(this, "ICON_SKIP pkg=" + pkg);
+            return;
+        }
+        iconPackage = pkg;
+        sendSessionCommand(io.github.miam1ku.mibandoplusbridge.protocol.BandNotificationCommand.iconQueryReply(pkg));
+        io.github.miam1ku.mibandoplusbridge.data.SessionLog.line(this, "ICON_QUERY pkg=" + pkg);
+    }
+
+    private String resolveIconPackage(String queried) {
+        if (queried == null || queried.isBlank()) return "";
+        synchronized (iconPackages) {
+            for (String full : iconPackages) if (full.startsWith(queried)) return full;
+        }
+        return queried;
+    }
+
+    private void uploadIcon(SppDiagnosticClient active,
+            nodomain.freeyourgadget.gadgetbridge.proto.xiaomi.XiaomiProto.NotificationIconRequest request) {
+        if (request.getStatus() != 0) return;
+        String pkg = iconPackage;
+        int size = request.getSize();
+        int format = request.getPixelFormat();
+        if (pkg == null || pkg.isBlank() || !iconUploadBusy.compareAndSet(false, true)) {
+            io.github.miam1ku.mibandoplusbridge.data.SessionLog.line(this, "ICON_BUSY");
+            return;
+        }
+        coordinator.execute(() -> {
+            try {
+                int[] pixels = io.github.miam1ku.mibandoplusbridge.notify.NotificationIcons.argb(this, pkg, size);
+                byte[] encoded = io.github.miam1ku.mibandoplusbridge.protocol.NotificationIconPixels
+                        .encode(pixels, size, size, format);
+                var queue = commands;
+                if (queue == null || client != active) {
+                    iconUploadBusy.set(false);
+                    return;
+                }
+                queue.request(io.github.miam1ku.mibandoplusbridge.protocol.NotificationIconUpload.request(encoded),
+                        22, 0).whenComplete((ack, error) -> deliverIcon(active, encoded, ack, error));
+            } catch (RuntimeException failure) {
+                iconUploadBusy.set(false);
+                io.github.miam1ku.mibandoplusbridge.data.SessionLog.line(this,
+                        "ICON_ENCODE " + failure.getClass().getSimpleName());
+            }
+        });
+    }
+
+    private void deliverIcon(SppDiagnosticClient active, byte[] encoded,
+            nodomain.freeyourgadget.gadgetbridge.proto.xiaomi.XiaomiProto.Command ack, Throwable error) {
+        try {
+            if (error != null || client != active) {
+                iconUploadBusy.set(false);
+                io.github.miam1ku.mibandoplusbridge.data.SessionLog.line(this, "ICON_UPLOAD_FAILED");
+                return;
+            }
+            int chunk = io.github.miam1ku.mibandoplusbridge.protocol.NotificationIconUpload
+                    .acceptedChunk(ack, active.notificationPayloadLimit());
+            var parts = io.github.miam1ku.mibandoplusbridge.protocol.NotificationIconUpload
+                    .chunks(io.github.miam1ku.mibandoplusbridge.protocol.NotificationIconUpload.envelope(encoded), chunk);
+            sendIconPart(active, parts, 0);
+        } catch (RuntimeException failure) {
+            iconUploadBusy.set(false);
+            io.github.miam1ku.mibandoplusbridge.data.SessionLog.line(this, "ICON_UPLOAD_FAILED");
+        }
+    }
+
+    private void sendIconPart(SppDiagnosticClient active, java.util.List<byte[]> parts, int index) {
+        if (client != active) {
+            iconUploadBusy.set(false);
+            return;
+        }
+        if (index >= parts.size()) {
+            iconUploadBusy.set(false);
+            io.github.miam1ku.mibandoplusbridge.data.SessionLog.line(this, "ICON_UPLOAD parts=" + parts.size());
+            return;
+        }
+        active.sendDataChunk(parts.get(index)).whenComplete((ignored, error) -> {
+            if (error != null) {
+                iconUploadBusy.set(false);
+                io.github.miam1ku.mibandoplusbridge.data.SessionLog.line(this, "ICON_UPLOAD_FAILED part=" + index);
+                return;
+            }
+            sendIconPart(active, parts, index + 1);
+        });
     }
 
     @Override public void onDestroy() {

@@ -30,6 +30,7 @@ final class BleGattClient implements AutoCloseable {
     static final UUID CMD_READ = UUID.fromString("00000051-0000-1000-8000-00805f9b34fb");
     static final UUID CMD_WRITE = UUID.fromString("00000052-0000-1000-8000-00805f9b34fb");
     static final UUID ACTIVITY = UUID.fromString("00000053-0000-1000-8000-00805f9b34fb");
+    static final UUID UPLOAD = UUID.fromString("00000055-0000-1000-8000-00805f9b34fb");
     private static final int ATT_PAYLOAD = 20;
     private final Context context;
     private final BluetoothDevice device;
@@ -37,6 +38,7 @@ final class BleGattClient implements AutoCloseable {
     private final UUID readUuid;
     private final UUID writeUuid;
     private final UUID activityUuid;
+    private final UUID uploadUuid;
     private final BlockingQueue<Rx> incoming = new ArrayBlockingQueue<>(32);
     private final BlockingQueue<byte[]> transportAcks = new ArrayBlockingQueue<>(8);
     private final AtomicReference<String> failure = new AtomicReference<>();
@@ -44,6 +46,7 @@ final class BleGattClient implements AutoCloseable {
     private final AtomicBoolean subscribeStarted = new AtomicBoolean();
     private volatile BluetoothGatt gatt;
     private volatile BluetoothGattCharacteristic writer;
+    private volatile BluetoothGattCharacteristic upload;
     private volatile boolean writerNotifies;
     private volatile boolean closed;
     private volatile boolean servicesReady;
@@ -68,6 +71,7 @@ final class BleGattClient implements AutoCloseable {
         this.readUuid = uuid(uuids, "protoRX", CMD_READ);
         this.writeUuid = uuid(uuids, "protoTX", CMD_WRITE);
         this.activityUuid = uuid(uuids, "fitness", ACTIVITY);
+        this.uploadUuid = uuid(uuids, "mass", UPLOAD);
     }
 
     void connect() throws Exception {
@@ -82,9 +86,21 @@ final class BleGattClient implements AutoCloseable {
         if (error != null) throw new SppDiagnosticClient.Failure(error);
     }
 
+    void writeUpload(byte[] payload, boolean encrypted, int counter) throws Exception {
+        BluetoothGattCharacteristic target = upload;
+        if (target == null) throw new SppDiagnosticClient.Failure("ICON_UPLOAD_UNSUPPORTED");
+        writeCharacteristic(target, payload, encrypted, counter);
+    }
+
     void write(byte[] payload, boolean encrypted, int counter) throws Exception {
         BluetoothGattCharacteristic target = writer;
         if (target == null || gatt == null) throw new SppDiagnosticClient.Failure("BLE_DISCONNECTED");
+        writeCharacteristic(target, payload, encrypted, counter);
+    }
+
+    private void writeCharacteristic(BluetoothGattCharacteristic target, byte[] payload,
+            boolean encrypted, int counter) throws Exception {
+        if (gatt == null) throw new SppDiagnosticClient.Failure("BLE_DISCONNECTED");
         int budget = writeBudget();
         List<byte[]> frames = BleV1Codec.encodeOutgoing(payload, budget, encrypted, counter);
         SessionLog.line(context, "ble mtu=" + budget + " frames=" + frames.size()
@@ -285,6 +301,7 @@ final class BleGattClient implements AutoCloseable {
             }
             BluetoothGattCharacteristic reader = service.getCharacteristic(readUuid);
             writer = service.getCharacteristic(writeUuid);
+            upload = service.getCharacteristic(uploadUuid);
             BluetoothGattCharacteristic fitness = service.getCharacteristic(activityUuid);
             if (reader == null || writer == null) {
                 fail("BLE_CHARACTERISTIC_MISSING");

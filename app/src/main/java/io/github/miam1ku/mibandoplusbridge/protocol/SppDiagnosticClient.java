@@ -22,9 +22,11 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayDeque;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Arrays;
 import java.util.UUID;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -76,9 +78,23 @@ public final class SppDiagnosticClient implements AutoCloseable {
     private String historyDeviceId;
     private io.github.miam1ku.mibandoplusbridge.data.RawFitnessFileStore rawHistory;
     private XiaomiProto.WeatherLocations observedLocations;
+    private final IdentityHashMap<XiaomiProto.Command, byte[]> iconChunks = new IdentityHashMap<>();
 
     public int notificationPayloadLimit() {
         return liveCommands == null || closed ? 0 : Math.max(0, peerPayloadLimit - 2);
+    }
+
+    /** One data-channel part. The queue owns the sequence so it stays aligned with commands. */
+    public CompletionStage<Void> sendDataChunk(byte[] chunk) {
+        LiveCommandQueue queue = liveCommands;
+        if (queue == null || closed || chunk == null || chunk.length == 0) {
+            return java.util.concurrent.CompletableFuture.failedFuture(new Failure("ICON_UPLOAD_UNAVAILABLE"));
+        }
+        XiaomiProto.Command token = XiaomiProto.Command.newBuilder().setType(22).setSubtype(1).build();
+        synchronized (iconChunks) { iconChunks.put(token, chunk.clone()); }
+        return queue.send(token).whenComplete((ignored, error) -> {
+            synchronized (iconChunks) { iconChunks.remove(token); }
+        });
     }
 
     public record Result(int batteryPercent, Integer batteryState, String firmware, String hardware) {}
@@ -559,6 +575,12 @@ public final class SppDiagnosticClient implements AutoCloseable {
     }
 
     private void writeCommand(int sequence, XiaomiProto.Command command) throws Exception {
+        byte[] chunk;
+        synchronized (iconChunks) { chunk = iconChunks.remove(command); }
+        if (chunk != null) {
+            writeIconChunk(sequence, chunk);
+            return;
+        }
         byte[] bytes = command.toByteArray();
         int plainLength = bytes.length;
         OwnershipController.beginNativeSession();
@@ -605,6 +627,41 @@ public final class SppDiagnosticClient implements AutoCloseable {
                 sendFrame(SppV2Codec.dataFrame(sequence, SppV2Codec.CHANNEL_PROTOBUF,
                         authenticated ? SppV2Codec.OPCODE_ENCRYPTED : SppV2Codec.OPCODE_PLAINTEXT, bytes));
             }
+        } finally {
+            OwnershipController.endNativeSession();
+        }
+    }
+
+    /** SPP data channel is plaintext. BLE reuses the command characteristic framing on the upload characteristic. */
+    private void writeIconChunk(int sequence, byte[] chunk) throws Exception {
+        OwnershipController.beginNativeSession();
+        try {
+            if (!new OwnershipController(context).nativeReady()) throw new Failure("NATIVE_OWNERSHIP_LOST");
+            if (framing == 2) {
+                int counter = 0;
+                byte[] body = chunk;
+                if (authenticated) {
+                    counter = v1EncryptCounter++;
+                    body = session.encryptV1(chunk, counter);
+                }
+                SessionLog.line(context, "tx ble icon part bytes=" + chunk.length + " counter=" + counter);
+                ble.writeUpload(body, authenticated, counter);
+                return;
+            }
+            if (chunk.length + 2 > peerPayloadLimit) throw new Failure("ICON_CHUNK");
+            if (framing == 1) {
+                SessionLog.line(context, "tx spp1 icon part bytes=" + chunk.length);
+                synchronized (writeLock) {
+                    output.write(SppV1Codec.encode(new SppV1Codec.Packet(
+                            SppV1Codec.CHANNEL_MASS, true, false, SppV1Codec.OPCODE_SEND,
+                            sequence, SppV1Codec.DATA_PLAIN, chunk)));
+                    output.flush();
+                }
+                return;
+            }
+            SessionLog.line(context, "tx spp2 icon part bytes=" + chunk.length);
+            sendFrame(SppV2Codec.dataFrame(sequence, SppV2Codec.CHANNEL_DATA,
+                    SppV2Codec.OPCODE_PLAINTEXT, chunk));
         } finally {
             OwnershipController.endNativeSession();
         }

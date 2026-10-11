@@ -31,6 +31,8 @@ public final class SppV2Codec {
     public static final int HEADER_LENGTH = 8;
     public static final int MAX_PAYLOAD_LENGTH = 0xffff;
     public static final int CHANNEL_PROTOBUF = 1;
+    /** Plaintext bulk channel. Notification icons travel here after the type 22 accept. */
+    public static final int CHANNEL_DATA = 2;
     public static final int CHANNEL_ACTIVITY = 5;
     public static final int OPCODE_PLAINTEXT = 1;
     public static final int OPCODE_ENCRYPTED = 2;
