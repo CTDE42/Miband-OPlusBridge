@@ -817,6 +817,94 @@ public final class BandHistoryParserTest {
         return bytes;
     }
 
+    @Test public void sportSummariesKeepTheWorkoutTheBandRecorded() throws Exception {
+        assertSport(22, 9, 1, 2, "户外跑步", 5_200, 310, 6_400, 148);
+        assertSport(22, 9, 2, 1, "健走", 3_100, 180, 4_200, 102);
+        assertSport(22, 9, 15, 506, "徒步", 8_400, 540, 11_000, 121);
+        assertSport(23, 9, 6, 3, "户外骑行", 12_000, 260, null, 130);
+        assertSport(3, 14, 3, 10, "室内跑步", 4_000, 280, 5_100, 150);
+        assertSport(8, 14, null, 35, "自由活动", null, 90, null, 110);
+        var rope = parseSport(14, 7, null, null, 70, 800);
+        assertEquals(908, rope.value.intValue());
+        assertEquals(Integer.valueOf(800), rope.reps);
+        assertEquals(Integer.valueOf(70), rope.calories);
+        var swim = parseSport(9, 8, null, 750, 210, null);
+        assertEquals(7, swim.value.intValue());
+        assertEquals(Integer.valueOf(750), swim.distance);
+        assertEquals("UNSUPPORTED_SPORT_FILE", parser().parseFile(file(9, sportDescriptor(22, 0),
+                new byte[] {0})).parseStatus);
+        assertEquals("UNSUPPORTED_SPORT_TYPE", parser().parseFile(sportFile(23, 9, 100, 1, 1, 1, null)).parseStatus);
+    }
+
+    private static void assertSport(int activity, int version, Integer subSport, int mode, String name,
+            Integer distance, int calories, Integer steps, int heart) throws Exception {
+        var session = parseSport(activity, version, subSport, distance, calories, steps, heart);
+        assertEquals(mode, session.value.intValue());
+        assertEquals(name, SportReportParser.name(mode));
+        assertEquals(distance, session.distance);
+        assertEquals(Integer.valueOf(calories), session.calories);
+        assertEquals(steps, session.reps);
+        assertEquals(Integer.valueOf(heart), session.heart);
+        assertEquals(1_800_000L, session.endMs - session.startMs);
+        assertEquals("+05:30", session.timezone);
+    }
+
+    private static BandHistoryParser.Measurement parseSport(int activity, int version, Integer subSport,
+            Integer distance, int calories, Integer steps) throws Exception {
+        return parseSport(activity, version, subSport, distance, calories, steps, null);
+    }
+
+    private static BandHistoryParser.Measurement parseSport(int activity, int version, Integer subSport,
+            Integer distance, int calories, Integer steps, Integer heart) throws Exception {
+        var parsed = parser().parseFile(sportFile(activity, version, subSport, distance, calories, steps, heart));
+        assertEquals("PARSED", parsed.parseStatus);
+        assertEquals(1, parsed.measurements.size());
+        return parsed.measurements.get(0);
+    }
+
+    private static byte[] sportFile(int activity, int version, Integer subSport, Integer distance,
+            int calories, Integer steps, Integer heart) {
+        java.util.Map<String, Long> values = new java.util.HashMap<>();
+        if (subSport != null) values.put("subSportType", subSport.longValue());
+        values.put("startTime", (long) START_SECONDS);
+        values.put("endTime", (long) START_SECONDS + 1_800);
+        values.put("totalDuration", 1_800L);
+        values.put("totalCalories", (long) calories);
+        if (distance != null) values.put("totalDistance", distance.longValue());
+        if (steps != null) values.put(activity == 14 ? "totalJumps" : "totalSteps", steps.longValue());
+        if (heart != null) values.put("avgHeartRate", heart.longValue());
+        SportReportLayouts.Layout layout = SportReportLayouts.layout(activity == 10 ? 9 : activity, version);
+        java.util.Set<String> gates = new java.util.HashSet<>();
+        for (SportReportLayouts.Field field : layout.fields) {
+            if (values.containsKey(field.name) && field.gate != null) gates.add(field.gate);
+        }
+        byte[] flags = new byte[layout.validityBytes];
+        for (int i = 0; i < layout.flags.length; i++) {
+            if (gates.contains(layout.flags[i])) flags[i / 8] |= (byte) (1 << (7 - (i % 8)));
+        }
+        java.io.ByteArrayOutputStream body = new java.io.ByteArrayOutputStream();
+        body.write(0);
+        body.write(flags, 0, flags.length);
+        for (SportReportLayouts.Field field : layout.fields) {
+            if (field.gate != null && !gates.contains(field.gate)) continue;
+            if (field.when != null) continue;
+            if (!values.containsKey(field.name) && field.gate == null) {
+                writeWidth(body, field.bytes, 0);
+            } else if (values.containsKey(field.name)) {
+                writeWidth(body, field.bytes, values.get(field.name));
+            }
+        }
+        return file(version, sportDescriptor(activity, 1), body.toByteArray());
+    }
+
+    private static int sportDescriptor(int activity, int detail) {
+        return 0x80 | (activity << 2) | detail;
+    }
+
+    private static void writeWidth(java.io.ByteArrayOutputStream body, int width, long value) {
+        for (int i = 0; i < width; i++) body.write((int) (value >>> (8 * i)));
+    }
+
     private static byte[] fragment(int total, int sequence, byte[] part) {
         byte[] packet = new byte[part.length + 4];
         put16(packet, 0, total);

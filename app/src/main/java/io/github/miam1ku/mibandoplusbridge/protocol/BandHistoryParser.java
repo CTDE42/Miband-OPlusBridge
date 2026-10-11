@@ -32,6 +32,7 @@ public final class BandHistoryParser {
     private static final byte[] SLEEP_INTERVAL = "sleep_interval".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] SLEEP_STAGE = "sleep_stage".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] SLEEP_BREATH = "sleep_breath".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] SPORT_SESSION = "sport_session".getBytes(StandardCharsets.US_ASCII);
     private static final long DAY_MS = 86_400_000L;
     private static final int[] PRESENT_FIELDS = {47, 43, 39, 35, 31, 27, 23, 19, 15, 11, 7};
     private static final int[] FIELD_WIDTHS = {2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 2};
@@ -130,12 +131,13 @@ public final class BandHistoryParser {
                 throw new SemanticException("INVALID_HISTORY_TIMEZONE");
             }
             if (bytes[7] != 0) throw new SemanticException("UNSUPPORTED_HISTORY_ENCODING");
-            if ((descriptor & 0x80) != 0) throw new SemanticException("UNSUPPORTED_SPORT_FILE");
             int absMinutes = Math.abs(quarterHours) * 15;
             String timezone = String.format(java.util.Locale.ROOT, "%c%02d:%02d",
                     quarterHours < 0 ? '-' : '+', absMinutes / 60, absMinutes % 60);
             List<Measurement> measurements;
-            if (dailyType == 0 && fileType == 0 && version >= 1 && version <= 4) {
+            if ((descriptor & 0x80) != 0) {
+                measurements = List.of(sportMeasurement(bytes, timezone));
+            } else if (dailyType == 0 && fileType == 0 && version >= 1 && version <= 4) {
                 measurements = decodeRecords(bytes, u32(bytes, 0), timezone, version);
             } else if (dailyType == 0 && fileType == 1 && version == 5) {
                 measurements = decodeReport(bytes, u32(bytes, 0), offsetSeconds, timezone);
@@ -503,7 +505,7 @@ public final class BandHistoryParser {
         return new Measurement(recordId("sleep_stage", start) + ":sleep", deviceId, "sleep_stage",
                 start, end, null, stage, timezone, "sleep", false,
                 sourceFingerprint("sleep_stage", start, end, null, timezone, "sleep", false, stage),
-                null, null, null);
+                null, null, null, null, null);
     }
 
 
@@ -527,8 +529,25 @@ public final class BandHistoryParser {
         return new Measurement(recordId(kind, start) + ":" + mode, deviceId, kind, start, end,
                 value, null, timezone, mode, complete,
                 sourceFingerprint(kind, start, end, value, timezone, mode, complete, null,
-                        calories, distance, moveAbout),
-                calories, distance, moveAbout);
+                        calories, distance, moveAbout, null, null),
+                calories, distance, moveAbout, null, null);
+    }
+
+    private Measurement sportMeasurement(byte[] bytes, String timezone) {
+        try {
+            SportReportParser.Session session = SportReportParser.parse(bytes);
+            String kind = "sport_session";
+            return new Measurement(recordId(kind, session.startMs) + ":continuous", deviceId, kind,
+                    session.startMs, session.endMs, session.mode, null, timezone, "continuous", false,
+                    sourceFingerprint(kind, session.startMs, session.endMs, session.mode, timezone,
+                            "continuous", false, null, session.calories, session.distance, null,
+                            session.reps, session.heart),
+                    session.calories, session.distance, null, session.reps, session.heart);
+        } catch (IllegalArgumentException failure) {
+            String status = failure.getMessage();
+            if (status != null && status.matches("[A-Z][A-Z0-9_]{0,80}")) throw new SemanticException(status);
+            throw failure;
+        }
     }
 
     private static boolean bit(long flags, int bit) { return (flags & 1L << bit) != 0; }
@@ -578,17 +597,17 @@ public final class BandHistoryParser {
 
     private String sourceFingerprint(String kind, long start, long end, Number value,
             String timezone, String mode, boolean complete) {
-        return sourceFingerprint(kind, start, end, value, timezone, mode, complete, null, null, null, null);
+        return sourceFingerprint(kind, start, end, value, timezone, mode, complete, null, null, null, null, null, null);
     }
 
     private String sourceFingerprint(String kind, long start, long end, Number value,
             String timezone, String mode, boolean complete, Integer stage) {
-        return sourceFingerprint(kind, start, end, value, timezone, mode, complete, stage, null, null, null);
+        return sourceFingerprint(kind, start, end, value, timezone, mode, complete, stage, null, null, null, null, null);
     }
 
     private String sourceFingerprint(String kind, long start, long end, Number value,
             String timezone, String mode, boolean complete, Integer stage,
-            Integer calories, Integer distance, Integer moveAbout) {
+            Integer calories, Integer distance, Integer moveAbout, Integer reps, Integer heart) {
         digest.reset();
         digest.update(identityBytes);
         digest.update((byte) 0);
@@ -611,6 +630,10 @@ public final class BandHistoryParser {
             updateLong(distance == null ? -1 : distance);
             updateLong(moveAbout == null ? -1 : moveAbout);
         }
+        if (reps != null || heart != null) {
+            updateLong(reps == null ? -1 : reps);
+            updateLong(heart == null ? -1 : heart);
+        }
         return HexFormat.of().formatHex(digest.digest());
     }
 
@@ -632,6 +655,7 @@ public final class BandHistoryParser {
             case "sleep_interval" -> SLEEP_INTERVAL;
             case "sleep_stage" -> SLEEP_STAGE;
             case "sleep_breath" -> SLEEP_BREATH;
+            case "sport_session" -> SPORT_SESSION;
             default -> throw new IllegalArgumentException("UNSUPPORTED_HEALTH_KIND");
         };
     }
@@ -809,7 +833,7 @@ public final class BandHistoryParser {
     public static final class Measurement {
         private static final Set<String> FIELDS = Set.of("recordId", "deviceId", "kind", "startMs",
                 "endMs", "value", "stage", "timezone", "measurementMode", "complete", "sourceFingerprint",
-                "calories", "distance", "moveAbout");
+                "calories", "distance", "moveAbout", "reps", "heart");
 
         public final String recordId;
         public final String deviceId;
@@ -825,11 +849,15 @@ public final class BandHistoryParser {
         public final Integer calories;
         public final Integer distance;
         public final Integer moveAbout;
+        /** Steps, or jump count for rope skipping. Null when the summary did not carry one. */
+        public final Integer reps;
+        /** Average heart rate. Null when the summary did not carry one. */
+        public final Integer heart;
 
         private Measurement(String recordId, String deviceId, String kind, long startMs,
                 long endMs, Number value, Integer stage, String timezone,
                 String measurementMode, boolean complete, String fingerprint,
-                Integer calories, Integer distance, Integer moveAbout) {
+                Integer calories, Integer distance, Integer moveAbout, Integer reps, Integer heart) {
             if (fingerprint == null || fingerprint.length() != 64) {
                 throw new IllegalArgumentException("INVALID_SOURCE_FINGERPRINT");
             }
@@ -853,11 +881,14 @@ public final class BandHistoryParser {
             this.calories = calories;
             this.distance = distance;
             this.moveAbout = moveAbout;
+            this.reps = reps;
+            this.heart = heart;
         }
 
         public HealthRecord toRecord(int revision) {
             return new HealthRecord(recordId, deviceId, kind, startMs, endMs, value, stage,
-                    revision, timezone, measurementMode, complete, calories, distance, moveAbout);
+                    revision, timezone, measurementMode, complete, calories, distance, moveAbout,
+                    reps, heart);
         }
 
         public JSONObject toJson() {
@@ -877,6 +908,8 @@ public final class BandHistoryParser {
                 if (calories != null) json.put("calories", calories);
                 if (distance != null) json.put("distance", distance);
                 if (moveAbout != null) json.put("moveAbout", moveAbout);
+                if (reps != null) json.put("reps", reps);
+                if (heart != null) json.put("heart", heart);
             } catch (JSONException e) {
                 throw new IllegalStateException("MEASUREMENT_SERIALIZATION_FAILED", e);
             }
@@ -905,7 +938,8 @@ public final class BandHistoryParser {
                     json.has("timezone") ? json.getString("timezone") : null,
                     json.getString("measurementMode"), json.getBoolean("complete"),
                     json.getString("sourceFingerprint"),
-                    optional(json, "calories"), optional(json, "distance"), optional(json, "moveAbout"));
+                    optional(json, "calories"), optional(json, "distance"), optional(json, "moveAbout"),
+                    optional(json, "reps"), optional(json, "heart"));
             result.toRecord(1); // Apply the same measurement validity rules as persisted records.
             return result;
         }

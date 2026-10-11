@@ -47,6 +47,7 @@ public final class OHealthHealthImportHook {
     private final HostContract host;
     private final OHealthSleepWriter sleep;
     private final OHealthStepWriter steps;
+    private final OHealthSportWriter sports;
     private final Handler worker;
     private final AtomicBoolean scheduled = new AtomicBoolean();
     private final AtomicReference<String> observedAccount = new AtomicReference<>();
@@ -60,12 +61,13 @@ public final class OHealthHealthImportHook {
     private final Runnable work = this::runScheduled;
 
     private OHealthHealthImportHook(Context context, HostContract host, OHealthSleepWriter sleep,
-            OHealthStepWriter steps) {
+            OHealthStepWriter steps, OHealthSportWriter sports) {
         Context application = context.getApplicationContext();
         this.context = application == null ? context : application;
         this.host = host;
         this.sleep = sleep;
         this.steps = steps;
+        this.sports = sports;
         HandlerThread thread = new HandlerThread("OplusBandHealthImport");
         thread.start();
         worker = new Handler(thread.getLooper());
@@ -98,7 +100,13 @@ public final class OHealthHealthImportHook {
         } catch (ReflectiveOperationException | LinkageError unsupported) {
             Log.i("OplusBandBridge", "OHEALTH_STEP_CONTRACT_UNAVAILABLE");
         }
-        OHealthHealthImportHook hook = new OHealthHealthImportHook(context, contract, sleepWriter, stepWriter);
+        OHealthSportWriter sportWriter = null;
+        try {
+            sportWriter = new OHealthSportWriter(contract);
+        } catch (ReflectiveOperationException | LinkageError unsupported) {
+            Log.i("OplusBandBridge", "OHEALTH_SPORT_CONTRACT_UNAVAILABLE");
+        }
+        OHealthHealthImportHook hook = new OHealthHealthImportHook(context, contract, sleepWriter, stepWriter, sportWriter);
         hook.observe();
         hook.keepStoredAccount();
         hook.installAccountSdk();
@@ -471,6 +479,7 @@ public final class OHealthHealthImportHook {
             }
             drain();
             if (steps != null) steps.write(context);
+            if (sports != null) sports.write(context);
             lastFailure = null;
             if (retrySoon) scheduleRetry(2_000);
             OHealthHomeMetricHook.requestReload();

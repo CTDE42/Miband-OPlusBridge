@@ -92,6 +92,10 @@ final class HealthReplay implements AutoCloseable {
             return;
         }
         int reparsed = raw.promoteRejectedSleep();
+        int sportReparsed = raw.promoteRejectedSport();
+        if (sportReparsed > 0) {
+            io.github.miam1ku.mibandoplusbridge.data.SessionLog.line(context, "history sport reparsed " + sportReparsed);
+        }
         if (reparsed > 0) {
             io.github.miam1ku.mibandoplusbridge.data.SessionLog.line(context, "history sleep reparsed " + reparsed);
         }

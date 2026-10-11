@@ -24,6 +24,7 @@ public final class RawFitnessFileStore {
     private static volatile boolean stepMetricsCurrent;
     private static volatile boolean sleepSummaryCurrent;
     private static volatile boolean sleepBreathMetricsCurrent;
+    private static volatile boolean sportSummaryCurrent;
     private final Context context;
     private final File directory;
 
@@ -279,6 +280,72 @@ public final class RawFitnessFileStore {
                 return 0;
             }
         }
+    }
+
+    /** One pass over sport summaries rejected before this parser existed. */
+    public int promoteRejectedSport() {
+        if (sportSummaryCurrent) return 0;
+        synchronized (FILE_LOCK) {
+            if (sportSummaryCurrent) return 0;
+            SharedPreferences prefs = context.getSharedPreferences("oplusband-history", Context.MODE_PRIVATE);
+            if (prefs.getBoolean("sport-summary-v1", false)) {
+                sportSummaryCurrent = true;
+                return 0;
+            }
+            try {
+                int promoted = rewriteRejectedSport();
+                if (!prefs.edit().putBoolean("sport-summary-v1", true).commit()) {
+                    throw new IllegalStateException("SPORT_SUMMARY_MEMORY_FAILED");
+                }
+                sportSummaryCurrent = true;
+                return promoted;
+            } catch (Exception ignored) {
+                return 0;
+            }
+        }
+    }
+
+    private int rewriteRejectedSport() throws Exception {
+        var state = LocalPrefs.open(context, "band-state");
+        String deviceId = state.getString("deviceId", "");
+        String identity = requireMatchingIdentity(context, deviceId);
+        String firmware = state.getString("verifiedFirmware", "");
+        if (firmware.isBlank()) throw new IllegalStateException("HISTORY_FIRMWARE_UNCONFIRMED");
+        BandHistoryParser parser = new BandHistoryParser(firmware, deviceId, identity);
+        File[] existing = directory.listFiles((parent, name) -> name.matches("[0-9a-f]{64}\\.dat"));
+        if (existing == null) return 0;
+        int promoted = 0;
+        try (HealthRecordStore store = new HealthRecordStore(context)) {
+            for (File file : existing) {
+                String hash = file.getName().substring(0, 64);
+                if (!store.isFileIndexed(hash)) continue;
+                byte[] bytes;
+                try {
+                    bytes = readFile(hash);
+                } catch (IllegalArgumentException invalid) {
+                    continue;
+                }
+                try {
+                    int descriptor = bytes.length > 6 ? bytes[6] & 0xff : 0;
+                    if ((descriptor & 0x80) == 0 || (descriptor & 3) != 1) continue;
+                    BandHistoryParser.FileResult result = parser.parseFile(bytes);
+                    if (!"PARSED".equals(result.parseStatus)) continue;
+                    boolean sport = false;
+                    for (BandHistoryParser.Measurement measurement : result.measurements) {
+                        if ("sport_session".equals(measurement.kind)) {
+                            sport = true;
+                            break;
+                        }
+                    }
+                    if (sport && store.promoteRejectedFile(hash, result.measurements.size())) promoted++;
+                } catch (IllegalArgumentException invalid) {
+                    continue;
+                } finally {
+                    Arrays.fill(bytes, (byte) 0);
+                }
+            }
+        }
+        return promoted;
     }
 
     /** One pass over files rejected before sleep summary version 4 could be parsed. */
