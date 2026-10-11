@@ -23,6 +23,14 @@ public final class BandStateRepository {
         this.context = application == null ? context : application;
     }
 
+    /** True when {@code address} is the stored band. Throws when the user is still locked. */
+    public boolean matchesAddress(String address) {
+        synchronized (STATE_LOCK) {
+            if (!isUnlocked()) throw new IllegalStateException("USER_LOCKED");
+            return MacIds.same(state().getString("mac", ""), address);
+        }
+    }
+
     public boolean isRegistered() {
         synchronized (STATE_LOCK) {
             // Do not open credential-encrypted preferences or decrypt bindings before unlock.

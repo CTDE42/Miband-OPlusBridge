@@ -6,6 +6,7 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -118,8 +119,15 @@ public final class BandLiveService extends Service {
     private boolean dndReceiverRegistered;
     private final BroadcastReceiver bluetoothEvents = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) {
+            if (intent == null) return;
+            if (BluetoothDevice.ACTION_BOND_STATE_CHANGED.equals(intent.getAction())) {
+                noteBond(context, intent);
+                return;
+            }
             if (!BluetoothAdapter.ACTION_STATE_CHANGED.equals(intent.getAction())) return;
             int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR);
+            io.github.miam1ku.mibandoplusbridge.data.SessionLog.line(context, "bt adapter state=" + state
+                    + "/" + adapterState(state));
             if (state == BluetoothAdapter.STATE_OFF || state == BluetoothAdapter.STATE_TURNING_OFF) {
                 SppDiagnosticClient active = client;
                 if (active != null) active.close();
@@ -611,8 +619,9 @@ public final class BandLiveService extends Service {
         coordinator.scheduleAtFixedRate(this::tick, 1, 1, TimeUnit.MINUTES);
         coordinator.scheduleAtFixedRate(this::expireHeld, 5, 5, TimeUnit.SECONDS);
         try {
-            registerReceiver(bluetoothEvents,
-                    new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED), RECEIVER_EXPORTED);
+            IntentFilter bluetooth = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
+            bluetooth.addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
+            registerReceiver(bluetoothEvents, bluetooth, RECEIVER_EXPORTED);
             receiverRegistered = true;
         } catch (RuntimeException ignored) { }
         try {
@@ -1012,6 +1021,58 @@ public final class BandLiveService extends Service {
                     "USER_LOCKED", "EMPTY_SOCKET_READ", "CLOSED" -> true;
             // Link loss is not a bad binding. Quiet backoff left the band down for two minutes.
             default -> code.startsWith("CLOSED") || code.startsWith("BLE_");
+        };
+    }
+
+    /** reason is the hidden unbond extra. 9 means some app removed the bond; 1 means auth failed. */
+    private void noteBond(Context context, Intent intent) {
+        int state = intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.ERROR);
+        int previous = intent.getIntExtra(BluetoothDevice.EXTRA_PREVIOUS_BOND_STATE, BluetoothDevice.ERROR);
+        int reason = intent.getIntExtra("android.bluetooth.device.extra.REASON", -1);
+        BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice.class);
+        String ours = "unknown";
+        if (device != null) {
+            try {
+                ours = String.valueOf(new BandStateRepository(context).matchesAddress(device.getAddress()));
+            } catch (RuntimeException locked) { }
+        }
+        io.github.miam1ku.mibandoplusbridge.data.SessionLog.line(context, "bond changed state=" + state
+                + "/" + bondName(state) + " prev=" + previous + "/" + bondName(previous)
+                + " reason=" + reason + "/" + bondReason(reason) + " ours=" + ours);
+    }
+
+    private static String adapterState(int state) {
+        return switch (state) {
+            case BluetoothAdapter.STATE_OFF -> "off";
+            case BluetoothAdapter.STATE_TURNING_ON -> "turning-on";
+            case BluetoothAdapter.STATE_ON -> "on";
+            case BluetoothAdapter.STATE_TURNING_OFF -> "turning-off";
+            default -> "other";
+        };
+    }
+
+    private static String bondName(int state) {
+        return switch (state) {
+            case BluetoothDevice.BOND_NONE -> "none";
+            case BluetoothDevice.BOND_BONDING -> "bonding";
+            case BluetoothDevice.BOND_BONDED -> "bonded";
+            default -> "other";
+        };
+    }
+
+    private static String bondReason(int reason) {
+        return switch (reason) {
+            case -1 -> "absent";
+            case 1 -> "auth-failed";
+            case 2 -> "auth-rejected";
+            case 3 -> "auth-canceled";
+            case 4 -> "remote-down";
+            case 5 -> "discovery";
+            case 6 -> "auth-timeout";
+            case 7 -> "repeated";
+            case 8 -> "remote-auth-canceled";
+            case 9 -> "removed";
+            default -> "other";
         };
     }
 

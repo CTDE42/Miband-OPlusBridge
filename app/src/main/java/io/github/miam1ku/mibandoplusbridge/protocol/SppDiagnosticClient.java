@@ -323,8 +323,7 @@ public final class SppDiagnosticClient implements AutoCloseable {
             }
             return result;
         } catch (Exception error) {
-            SessionLog.line(context, "session failed " + (error instanceof Failure typed ? typed.code
-                    : error.getClass().getSimpleName()));
+            SessionLog.line(context, "session failed " + failureText(error) + bondNow(binding));
             if (timedOut) throw new Failure("DIAGNOSTIC_TIMEOUT");
             throw error;
         } finally {
@@ -569,6 +568,9 @@ public final class SppDiagnosticClient implements AutoCloseable {
             if (framing != 0 && liveCommands != null) liveCommands.onAck(sequence);
         } catch (Exception failure) {
             linkStop = failure instanceof Failure typed ? typed.code : failure.getClass().getSimpleName();
+            if (!(failure instanceof Failure)) {
+                SessionLog.line(context, "link stop " + failureText(failure));
+            }
             close();
             throw failure;
         }
@@ -671,6 +673,41 @@ public final class SppDiagnosticClient implements AutoCloseable {
         if (value == null) return "";
         String clean = value.replaceAll("[\\p{Cntrl}]", "");
         return clean.length() > 120 ? clean.substring(0, 120) : clean;
+    }
+
+    /** Keeps the socket message. A bare class name cannot tell a remote reset from a local close. */
+    private static String failureText(Exception error) {
+        if (error instanceof Failure typed) return typed.code;
+        StringBuilder text = new StringBuilder(error.getClass().getSimpleName());
+        String message = SessionLog.redact(error.getMessage());
+        if (!message.isEmpty()) text.append(" msg=").append(message);
+        Throwable cause = error.getCause();
+        if (cause != null && cause != error) {
+            text.append(" cause=").append(cause.getClass().getSimpleName());
+            String causeMessage = SessionLog.redact(cause.getMessage());
+            if (!causeMessage.isEmpty()) text.append(" causeMsg=").append(causeMessage);
+        }
+        return text.toString();
+    }
+
+    private String bondNow(Inputs binding) {
+        try {
+            var adapter = context.getSystemService(BluetoothManager.class).getAdapter();
+            if (adapter == null) return " bond=adapter-null";
+            int state = adapter.getRemoteDevice(binding.address()).getBondState();
+            return " bond=" + state + "/" + bondName(state);
+        } catch (RuntimeException unread) {
+            return " bond=unread";
+        }
+    }
+
+    private static String bondName(int state) {
+        return switch (state) {
+            case BluetoothDevice.BOND_NONE -> "none";
+            case BluetoothDevice.BOND_BONDING -> "bonding";
+            case BluetoothDevice.BOND_BONDED -> "bonded";
+            default -> "other";
+        };
     }
 
     private XiaomiProto.Command awaitCommand(int type, int subtype) throws Exception {

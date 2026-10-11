@@ -27,6 +27,14 @@ public final class SessionLogTest {
         assertEquals(3, count(kept));
     }
 
+    @Test public void redactStripsAMacBeforeItCanReachTheLog() {
+        String clean = SessionLog.redact("read failed AA:bb:cc:dd:ee:ff\nstill");
+        assertFalse(clean.toLowerCase().contains("aa:bb"));
+        assertFalse(clean.contains("\n"));
+        assertEquals("read failed mac still", clean);
+        assertEquals("gone mac", SessionLog.redact("gone aa-bb-cc-dd-ee-ff"));
+    }
+
     @Test public void fewerThanThreeStartsAreLeftIntact() {
         String log = "--- module start 1 ---\nonly\n";
         assertEquals(log, SessionLog.keepLastStarts(log, 3));

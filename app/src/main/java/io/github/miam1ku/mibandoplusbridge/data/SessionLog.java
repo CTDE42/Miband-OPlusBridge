@@ -37,6 +37,14 @@ public final class SessionLog {
         }
     }
 
+    /** Drops MAC-shaped addresses and control characters before a line is stored. */
+    public static String redact(String value) {
+        if (value == null || value.isBlank()) return "";
+        String clean = value.replaceAll("(?i)[0-9a-f]{2}([:-][0-9a-f]{2}){5}", "mac")
+                .replaceAll("[\\p{Cntrl}]+", " ").trim();
+        return clean.length() > 160 ? clean.substring(0, 160) : clean;
+    }
+
     public static void line(Context context, String message) {
         if (context == null || message == null || message.isBlank()) return;
         String row = Instant.now() + " " + message.replace('\n', ' ').replace('\r', ' ') + "\n";
