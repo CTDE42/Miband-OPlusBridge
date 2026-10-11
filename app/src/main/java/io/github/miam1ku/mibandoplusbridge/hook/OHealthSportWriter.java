@@ -23,7 +23,7 @@ final class OHealthSportWriter {
     private final OHealthHealthImportHook.HostContract host;
     private final Constructor<?> created;
     private final Method setAccount, setDevice, setType, setStart, setEnd, setMode, setZone;
-    private final Method setDisplay, setSync, setMeta, setClient;
+    private final Method setDisplay, setSync, setMeta, setClient, setVersion, setData;
     private final Method getStart, getMode, getDevice;
 
     OHealthSportWriter(OHealthHealthImportHook.HostContract host) throws ReflectiveOperationException {
@@ -41,6 +41,8 @@ final class OHealthSportWriter {
         setSync = type.getMethod("setSyncStatus", int.class);
         setMeta = type.getMethod("setMetaData", String.class);
         setClient = type.getMethod("setClientDataId", String.class);
+        setVersion = type.getMethod("setVersion", int.class);
+        setData = type.getMethod("setData", String.class);
         getStart = type.getMethod("getStartTimestamp");
         getMode = type.getMethod("getSportMode");
         getDevice = type.getMethod("getDeviceUniqueId");
@@ -56,12 +58,21 @@ final class OHealthSportWriter {
         String queued = band.getString("deviceId");
         String device = OHealthDeviceHook.healthId(queued);
         SharedPreferences written = context.getSharedPreferences("oplusband-sport-import", Context.MODE_PRIVATE);
-        for (HealthRecord record : history(context, account, queued)) {
+        List<HealthRecord> tracks = history(context, account, queued, "sport_track");
+        for (HealthRecord record : history(context, account, queued, "sport_session")) {
+            HealthRecord track = match(record, tracks);
             String key = device + ":" + record.recordId;
-            if (written.getInt(key, 0) == record.revision) continue;
+            String mark = record.revision + ":" + (track == null ? 0 : track.track.length());
+            String saved;
             try {
-                if (store(api, account, device, record)) {
-                    if (!written.edit().putInt(key, record.revision).commit()) {
+                saved = written.getString(key, "");
+            } catch (ClassCastException old) {
+                saved = "";
+            }
+            if (mark.equals(saved)) continue;
+            try {
+                if (store(api, account, device, record, track, !saved.isEmpty())) {
+                    if (!written.edit().putString(key, mark).commit()) {
                         throw new IllegalStateException("SPORT_IMPORT_MEMORY_FAILED");
                     }
                 }
@@ -71,7 +82,17 @@ final class OHealthSportWriter {
         }
     }
 
-    private boolean store(Object api, String account, String device, HealthRecord record) throws Exception {
+    private static HealthRecord match(HealthRecord session, List<HealthRecord> tracks) {
+        HealthRecord best = null;
+        for (HealthRecord track : tracks) {
+            if (track.startMs >= session.endMs || track.endMs <= session.startMs) continue;
+            if (best == null || track.value.intValue() > best.value.intValue()) best = track;
+        }
+        return best;
+    }
+
+    private boolean store(Object api, String account, String device, HealthRecord record,
+            HealthRecord track, boolean replace) throws Exception {
         int mode = record.value.intValue();
         Object row = created.newInstance();
         setAccount.invoke(row, account);
@@ -84,7 +105,18 @@ final class OHealthSportWriter {
         setSync.invoke(row, 0);
         setClient.invoke(row, record.recordId);
         if (record.timezone != null) setZone.invoke(row, record.timezone);
-        setMeta.invoke(row, metadata(record, mode));
+        setMeta.invoke(row, metadata(record, mode, track != null));
+        if (track != null) {
+            setVersion.invoke(row, 2);
+            setData.invoke(row, new JSONObject().put("gps", track.track).toString());
+        }
+        if (replace) {
+            try {
+                host.deleteRows(api, TABLE, account, device, record.startMs, record.startMs + 1);
+            } catch (Exception ignored) {
+                // A missing previous row still lets the new summary replace the map.
+            }
+        }
         host.insertRows(api, TABLE, List.of(row));
         List<?> found = host.readRows(api, account, TABLE, device, record.startMs, record.endMs, 0, false);
         for (Object saved : found) {
@@ -95,7 +127,7 @@ final class OHealthSportWriter {
         return false;
     }
 
-    private static String metadata(HealthRecord record, int mode) throws Exception {
+    private static String metadata(HealthRecord record, int mode, boolean tracked) throws Exception {
         JSONObject json = new JSONObject();
         json.put("sportMode", mode);
         json.put("sportName", SportReportParser.name(mode));
@@ -104,10 +136,11 @@ final class OHealthSportWriter {
         if (record.distance != null) json.put("totalDistance", record.distance);
         if (record.reps != null) json.put("totalSteps", record.reps);
         if (record.heart != null) json.put("avgHeartRate", record.heart);
+        if (tracked) json.put("hasTrackPoint", true);
         return json.toString();
     }
 
-    private List<HealthRecord> history(Context context, String account, String device) throws Exception {
+    private List<HealthRecord> history(Context context, String account, String device, String kind) throws Exception {
         List<HealthRecord> records = new ArrayList<>();
         String after = null;
         for (;;) {
@@ -116,7 +149,7 @@ final class OHealthSportWriter {
             int count = 0;
             try (Cursor rows = context.getContentResolver().query(uri, COLUMNS,
                     "account=? AND deviceId=? AND kind=? AND startMs<? AND endMs>?",
-                    new String[] {account, device, "sport_session", Long.toString(Long.MAX_VALUE), "0"}, null)) {
+                    new String[] {account, device, kind, Long.toString(Long.MAX_VALUE), "0"}, null)) {
                 if (rows == null) throw new IllegalStateException("SPORT_HISTORY_UNAVAILABLE");
                 while (rows.moveToNext()) {
                     records.add(HealthRecord.fromJson(new JSONObject(rows.getString(2))));

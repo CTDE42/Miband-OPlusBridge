@@ -836,6 +836,33 @@ public final class BandHistoryParserTest {
         assertEquals("UNSUPPORTED_SPORT_TYPE", parser().parseFile(sportFile(23, 9, 100, 1, 1, 1, null)).parseStatus);
     }
 
+    @Test public void outdoorGpsBecomesTheTrackStringHealthDraws() throws Exception {
+        var parsed = parser().parseFile(gpsFile(22, 5, 31.25f, 121.5f));
+        assertEquals("PARSED", parsed.parseStatus);
+        assertEquals("sport_track", parsed.measurements.get(0).kind);
+        assertEquals(2, parsed.measurements.get(0).value.intValue());
+        String track = parsed.measurements.get(0).track;
+        assertTrue(track.startsWith("5,0,0,0,0,0,"));
+        assertTrue(track.contains("31.250000"));
+        assertTrue(track.contains("121.500000"));
+        assertEquals("UNSUPPORTED_SPORT_FILE", parser().parseFile(gpsFile(3, 5, 31f, 121f)).parseStatus);
+    }
+
+    private static byte[] gpsFile(int activity, int version, float lat, float lon) {
+        java.nio.ByteBuffer body = java.nio.ByteBuffer.allocate(2 + 4 + 12 * 2).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        body.put((byte) 0xE0);
+        body.put((byte) 0);
+        body.putInt(2);
+        for (int i = 0; i < 2; i++) {
+            body.putInt(START_SECONDS + i);
+            body.putFloat(lon);
+            body.putFloat(lat + i * 0.0001f);
+        }
+        byte[] data = new byte[1 + body.capacity()];
+        System.arraycopy(body.array(), 0, data, 1, body.capacity());
+        return file(version, 0x80 | (activity << 2) | 2, data);
+    }
+
     private static void assertSport(int activity, int version, Integer subSport, int mode, String name,
             Integer distance, int calories, Integer steps, int heart) throws Exception {
         var session = parseSport(activity, version, subSport, distance, calories, steps, heart);

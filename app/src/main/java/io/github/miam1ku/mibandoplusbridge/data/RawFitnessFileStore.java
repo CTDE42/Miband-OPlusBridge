@@ -288,13 +288,13 @@ public final class RawFitnessFileStore {
         synchronized (FILE_LOCK) {
             if (sportSummaryCurrent) return 0;
             SharedPreferences prefs = context.getSharedPreferences("oplusband-history", Context.MODE_PRIVATE);
-            if (prefs.getBoolean("sport-summary-v1", false)) {
+            if (prefs.getBoolean("sport-gps-v1", false)) {
                 sportSummaryCurrent = true;
                 return 0;
             }
             try {
                 int promoted = rewriteRejectedSport();
-                if (!prefs.edit().putBoolean("sport-summary-v1", true).commit()) {
+                if (!prefs.edit().putBoolean("sport-gps-v1", true).commit()) {
                     throw new IllegalStateException("SPORT_SUMMARY_MEMORY_FAILED");
                 }
                 sportSummaryCurrent = true;
@@ -327,12 +327,12 @@ public final class RawFitnessFileStore {
                 }
                 try {
                     int descriptor = bytes.length > 6 ? bytes[6] & 0xff : 0;
-                    if ((descriptor & 0x80) == 0 || (descriptor & 3) != 1) continue;
+                    if ((descriptor & 0x80) == 0 || ((descriptor & 3) != 1 && (descriptor & 3) != 2)) continue;
                     BandHistoryParser.FileResult result = parser.parseFile(bytes);
                     if (!"PARSED".equals(result.parseStatus)) continue;
                     boolean sport = false;
                     for (BandHistoryParser.Measurement measurement : result.measurements) {
-                        if ("sport_session".equals(measurement.kind)) {
+                        if ("sport_session".equals(measurement.kind) || "sport_track".equals(measurement.kind)) {
                             sport = true;
                             break;
                         }

@@ -222,7 +222,8 @@ public final class HealthRecordStore extends SQLiteOpenHelper {
         HealthRecord record = measurement.toRecord(revision);
         String payload = record.toJson().toString();
         int size = payload.getBytes(StandardCharsets.UTF_8).length;
-        if (size > MAX_RECORD_BYTES) throw new IllegalArgumentException("HEALTH_RECORD_TOO_LARGE");
+        int limit = "sport_track".equals(record.kind) ? 256 * 1024 : MAX_RECORD_BYTES;
+        if (size > limit) throw new IllegalArgumentException("HEALTH_RECORD_TOO_LARGE");
         String[] key = {account, record.recordId};
         // Delete inside the transaction: a failed capacity check restores the previous revision.
         db.delete("records", "account_hash=? AND record_id=?", key);
