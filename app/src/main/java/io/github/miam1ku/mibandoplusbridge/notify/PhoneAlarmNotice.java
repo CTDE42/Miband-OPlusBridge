@@ -16,6 +16,10 @@ public final class PhoneAlarmNotice {
     private static final Set<String> ringing = ConcurrentHashMap.newKeySet();
     /** AlarmSnoozeService foreground id. A countdown, not a ringing alarm. */
     static final int SNOOZE_NOTIFICATION_ID = -1018;
+    /** TimerService, the timer floating window, and the stopwatch service share the klaxon channel. */
+    private static final int TIMER_SERVICE_ID = -1014;
+    private static final int TIMER_FLOATING_ID = -1015;
+    private static final int STOPWATCH_SERVICE_ID = -1016;
     private static long lastSentAt;
     private static int lastSentOp = -1;
     private static long clockRingAt;
@@ -24,13 +28,19 @@ public final class PhoneAlarmNotice {
 
     public static boolean ringing(String pkg, int flags, String channel, int id, boolean fullScreen) {
         if (!CLOCK.equals(pkg) || channel == null || channel.contains("next.alarm")) return false;
-        if (id == SNOOZE_NOTIFICATION_ID) return false;
+        if (id == SNOOZE_NOTIFICATION_ID || runningClockTool(id, channel)) return false;
         boolean service = (flags & android.app.Notification.FLAG_FOREGROUND_SERVICE) != 0;
-        // ColorOS 17 posts the klaxon on this channel. The snooze countdown uses the same channel at -1018.
+        // ColorOS 17 posts the klaxon on this channel. Timer and stopwatch services use it too.
         if ("clock_foreground_service_channel_id".equals(channel)) return service;
         if (id == Integer.MIN_VALUE || id == -1017) return true;
         if (!channel.contains("alarmclock")) return false;
         return fullScreen || service;
+    }
+
+    /** A running timer or stopwatch. The band has no sync for either, so they must not ring. */
+    private static boolean runningClockTool(int id, String channel) {
+        if (id == TIMER_SERVICE_ID || id == TIMER_FLOATING_ID || id == STOPWATCH_SERVICE_ID) return true;
+        return channel.contains("timer") || channel.contains("stopwatch");
     }
 
     public static boolean ringing(StatusBarNotification item) {

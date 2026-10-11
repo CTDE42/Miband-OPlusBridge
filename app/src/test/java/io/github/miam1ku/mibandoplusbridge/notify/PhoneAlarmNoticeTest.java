@@ -29,4 +29,19 @@ public final class PhoneAlarmNoticeTest {
         assertFalse(PhoneAlarmNotice.ringing(PhoneAlarmNotice.CLOCK,
                 Notification.FLAG_FOREGROUND_SERVICE, "com.oplus.alarmclock.next.alarm", -1011, true));
     }
+
+    @Test public void aRunningTimerOrStopwatchIsNotAnAlarm() {
+        assertFalse(PhoneAlarmNotice.ringing(PhoneAlarmNotice.CLOCK,
+                Notification.FLAG_FOREGROUND_SERVICE, "clock_foreground_service_channel_id", -1014, false));
+        assertFalse(PhoneAlarmNotice.ringing(PhoneAlarmNotice.CLOCK,
+                Notification.FLAG_FOREGROUND_SERVICE, "clock_foreground_service_channel_id", -1015, false));
+        assertFalse(PhoneAlarmNotice.ringing(PhoneAlarmNotice.CLOCK,
+                Notification.FLAG_FOREGROUND_SERVICE, "clock_foreground_service_channel_id", -1016, false));
+        assertFalse(PhoneAlarmNotice.ringing(PhoneAlarmNotice.CLOCK,
+                Notification.FLAG_FOREGROUND_SERVICE, "timer_notification_channel2", -1001, true));
+        assertFalse(PhoneAlarmNotice.ringing(PhoneAlarmNotice.CLOCK,
+                Notification.FLAG_ONGOING_EVENT, "stopwatch_notification_channel", -2000, false));
+        assertTrue(PhoneAlarmNotice.ringing(PhoneAlarmNotice.CLOCK,
+                Notification.FLAG_FOREGROUND_SERVICE, "clock_foreground_service_channel_id", -1017, false));
+    }
 }
