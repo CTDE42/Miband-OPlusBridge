@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.miam1ku.mibandoplusbridge.hook;
 
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.HookRuntime;
 import android.content.Context;
 import android.location.Location;
 import android.location.LocationManager;
@@ -11,7 +12,7 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.SystemClock;
 import android.util.Log;
-import de.robv.android.xposed.XposedHelpers;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedHelpers;
 import io.github.miam1ku.mibandoplusbridge.HostIdentity;
 import io.github.miam1ku.mibandoplusbridge.integration.WeatherSnapshotProvider;
 import java.lang.reflect.Proxy;
@@ -34,8 +35,7 @@ public final class OHealthWeatherHook {
                 String.class, consumerType, consumerType);
         Object source = cloud.getField("INSTANCE").get(null);
         LocationManager location = context.getSystemService(LocationManager.class);
-        HandlerThread worker = new HandlerThread("OplusBandWeatherSource");
-        worker.start();
+        HandlerThread worker = HookRuntime.thread("OplusBandWeatherSource");
         Handler handler = new Handler(worker.getLooper());
         AtomicReference<String> active = new AtomicReference<>();
         java.util.concurrent.atomic.AtomicInteger lookups = new java.util.concurrent.atomic.AtomicInteger();
@@ -115,7 +115,7 @@ public final class OHealthWeatherHook {
                 }
             }
         };
-        context.getContentResolver().registerContentObserver(WeatherSnapshotProvider.URI, false, requested[0]);
+        HookRuntime.observe(context.getContentResolver(), WeatherSnapshotProvider.URI, false, requested[0]);
         handler.post(() -> requested[0].onChange(false));
     }
 

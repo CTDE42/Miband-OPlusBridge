@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.miam1ku.mibandoplusbridge.hook;
 
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.HookRuntime;
 import android.app.Application;
 import android.content.Context;
 import android.database.ContentObserver;
@@ -10,9 +11,9 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.SystemClock;
 import android.util.Log;
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XC_MethodHook;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedBridge;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedHelpers;
 import io.github.miam1ku.mibandoplusbridge.HostIdentity;
 import io.github.miam1ku.mibandoplusbridge.data.HealthRecord;
 import io.github.miam1ku.mibandoplusbridge.integration.HealthQueueProvider;
@@ -68,8 +69,7 @@ public final class OHealthHealthImportHook {
         this.sleep = sleep;
         this.steps = steps;
         this.sports = sports;
-        HandlerThread thread = new HandlerThread("OplusBandHealthImport");
-        thread.start();
+        HandlerThread thread = HookRuntime.thread("OplusBandHealthImport");
         worker = new Handler(thread.getLooper());
     }
 
@@ -116,11 +116,11 @@ public final class OHealthHealthImportHook {
     }
 
     private void observe() {
-        context.getContentResolver().registerContentObserver(HealthQueueProvider.URI, false,
+        HookRuntime.observe(context.getContentResolver(), HealthQueueProvider.URI, false,
                 new ContentObserver(null) {
                     @Override public void onChange(boolean selfChange) { request(); }
                 });
-        context.getContentResolver().registerContentObserver(HealthQueueProvider.RECORDS_URI, true,
+        HookRuntime.observe(context.getContentResolver(), HealthQueueProvider.RECORDS_URI, true,
                 new ContentObserver(null) {
                     @Override public void onChange(boolean selfChange) { request(); }
                 });
@@ -147,7 +147,7 @@ public final class OHealthHealthImportHook {
         XposedHelpers.findAndHookMethod(Application.class, "onCreate", new XC_MethodHook() {
             @Override protected void afterHookedMethod(MethodHookParam param) {
                 restoreSystemAccount();
-                Handler main = new Handler(android.os.Looper.getMainLooper());
+                Handler main = HookRuntime.main();
                 main.postDelayed(OHealthHealthImportHook.this::restoreSystemAccount, 2_000);
                 main.postDelayed(OHealthHealthImportHook.this::restoreSystemAccount, 8_000);
                 main.postDelayed(OHealthHealthImportHook.this::restoreSystemAccount, 20_000);
@@ -288,7 +288,7 @@ public final class OHealthHealthImportHook {
                     Log.i("OplusBandBridge", "OHEALTH_ACCOUNT_INIT_CONTEXT");
                 }
             });
-            Handler main = new Handler(android.os.Looper.getMainLooper());
+            Handler main = HookRuntime.main();
             for (long delay : new long[] {1_000L, 3_000L, 8_000L}) {
                 main.postDelayed(this::retryAccountInit, delay);
             }
@@ -381,7 +381,7 @@ public final class OHealthHealthImportHook {
         try {
             Class<?> helper = Class.forName("com.heytap.health.base.account.TokenHelper", false, host.loader);
             Class<?> prefsType = Class.forName("com.heytap.health.base.sp.SPUtils", false, host.loader);
-            de.robv.android.xposed.XposedBridge.hookAllMethods(helper, "getToken", new XC_MethodHook() {
+            io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedBridge.hookAllMethods(helper, "getToken", new XC_MethodHook() {
                 @Override protected void afterHookedMethod(MethodHookParam param) {
                     Object current = param.getResult();
                     if (current != null && !String.valueOf(current).isBlank()) return;

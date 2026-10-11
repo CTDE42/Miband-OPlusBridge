@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.miam1ku.mibandoplusbridge.hook;
 
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.HookRuntime;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -17,7 +18,7 @@ public final class OHealthDndHook {
 
     public static void install(Context context) {
         IntentFilter filter = new IntentFilter(ACTION);
-        context.registerReceiver(new BroadcastReceiver() {
+        HookRuntime.receive(context, new BroadcastReceiver() {
             @Override public void onReceive(Context ctx, Intent intent) {
                 if (intent == null || !ACTION.equals(intent.getAction()) || !fromBridge(ctx, getSentFromUid())) return;
                 PhoneDnd.Attempt attempt = PhoneDnd.apply(ctx, intent.getBooleanExtra("on", false));

@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.miam1ku.mibandoplusbridge.hook;
 
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.HookRuntime;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XC_MethodHook;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedBridge;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -82,7 +83,7 @@ public final class OHealthHomeMetricHook {
     public static void requestReload() {
         synchronized (OHealthHomeMetricHook.class) {
             if (reloadPosted) return;
-            if (main == null) main = new Handler(Looper.getMainLooper());
+            if (main == null) main = HookRuntime.main();
             reloadPosted = true;
             main.post(OHealthHomeMetricHook::reload);
         }

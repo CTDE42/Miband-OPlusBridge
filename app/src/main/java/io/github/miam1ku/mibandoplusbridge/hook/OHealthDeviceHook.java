@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.miam1ku.mibandoplusbridge.hook;
 
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.HookRuntime;
 import android.content.Context;
 import android.content.Intent;
 import android.database.ContentObserver;
@@ -12,9 +13,9 @@ import android.service.notification.StatusBarNotification;
 import android.util.Log;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Modifier;
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XC_MethodHook;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedBridge;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedHelpers;
 import io.github.miam1ku.mibandoplusbridge.HostIdentity;
 import io.github.miam1ku.mibandoplusbridge.integration.DeviceCardProvider;
 import java.util.ArrayList;
@@ -49,7 +50,7 @@ public final class OHealthDeviceHook {
         // Application.attach runs before ActivityThread publishes the Application instance.
         if (hostContext == null) hostContext = context;
         if (!HOST.equals(context.getPackageName())) return;
-        main = new Handler(Looper.getMainLooper());
+        main = HookRuntime.main();
         XposedHelpers.findAndHookMethod(CONTROLLER, loader, "refreshWearableDeviceList",
                 List.class, List.class, String.class, new XC_MethodHook() {
                     @Override protected void beforeHookedMethod(MethodHookParam param) {
@@ -185,15 +186,14 @@ public final class OHealthDeviceHook {
         String mac = band.getString("mac", "");
         try {
             if (io.github.miam1ku.mibandoplusbridge.data.MacIds.same(mac, String.valueOf(
-                    de.robv.android.xposed.XposedHelpers.callMethod(manager, "getThirdpartySelectMac")))) return true;
+                    io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedHelpers.callMethod(manager, "getThirdpartySelectMac")))) return true;
             return allRole != null && io.github.miam1ku.mibandoplusbridge.data.MacIds.same(mac, String.valueOf(
-                    de.robv.android.xposed.XposedHelpers.callMethod(manager, "getCurrActiveMacByRole", allRole)));
+                    io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedHelpers.callMethod(manager, "getCurrActiveMacByRole", allRole)));
         } catch (Throwable unavailable) { return false; }
     }
 
     private static void observeSnapshots(ClassLoader loader) {
-        HandlerThread thread = new HandlerThread("OplusBandDeviceSnapshot");
-        thread.start();
+        HandlerThread thread = HookRuntime.thread("OplusBandDeviceSnapshot");
         worker = new Handler(thread.getLooper());
         Runnable[] refresh = new Runnable[1];
         refresh[0] = () -> {
@@ -236,7 +236,7 @@ public final class OHealthDeviceHook {
         };
         worker.post(() -> {
             try {
-                hostContext.getContentResolver().registerContentObserver(DeviceCardProvider.URI, true, observer);
+                HookRuntime.observe(hostContext.getContentResolver(), DeviceCardProvider.URI, true, observer);
             } catch (Throwable failure) {
                 Log.i("OplusBandBridge", "OHEALTH_OBSERVER_UNAVAILABLE " + failure.getClass().getSimpleName());
             }
@@ -1143,11 +1143,7 @@ public final class OHealthDeviceHook {
     private static final java.util.concurrent.ConcurrentHashMap<String, Integer> HOST_NOTIFICATIONS =
             new java.util.concurrent.ConcurrentHashMap<>();
     private static final java.util.concurrent.ExecutorService ALLOWLIST =
-            java.util.concurrent.Executors.newSingleThreadExecutor(runnable -> {
-                Thread thread = new Thread(runnable, "OplusBandAllowlist");
-                thread.setDaemon(true);
-                return thread;
-            });
+            HookRuntime.worker("OplusBandAllowlist", 0);
     private static final Map<String, Boolean> FORWARDED_EVENTS = new java.util.LinkedHashMap<>();
     private static final java.util.concurrent.atomic.AtomicInteger policyGeneration =
             new java.util.concurrent.atomic.AtomicInteger();
@@ -1314,7 +1310,7 @@ public final class OHealthDeviceHook {
 
     private static android.service.notification.StatusBarNotification clockNotification(Object bean) {
         try {
-            Object origin = de.robv.android.xposed.XposedHelpers.callMethod(bean, "getOrigin");
+            Object origin = io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedHelpers.callMethod(bean, "getOrigin");
             if (origin instanceof android.service.notification.StatusBarNotification posted) return posted;
         } catch (Throwable ignored) { }
         return null;
@@ -1322,7 +1318,7 @@ public final class OHealthDeviceHook {
 
     private static String clockShape(Object bean) {
         try {
-            Object origin = de.robv.android.xposed.XposedHelpers.callMethod(bean, "getOrigin");
+            Object origin = io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedHelpers.callMethod(bean, "getOrigin");
             if (!(origin instanceof android.service.notification.StatusBarNotification posted)) return "origin=absent";
             android.app.Notification notification = posted.getNotification();
             String channel = notification == null || notification.getChannelId() == null ? "" : notification.getChannelId();

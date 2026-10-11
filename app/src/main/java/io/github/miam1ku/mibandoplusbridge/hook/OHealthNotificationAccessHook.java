@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.miam1ku.mibandoplusbridge.hook;
 
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.HookRuntime;
 import android.app.NotificationManager;
 import android.content.ComponentName;
 import android.content.Context;
@@ -9,9 +10,9 @@ import android.service.notification.NotificationListenerService;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XC_MethodHook;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedBridge;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedHelpers;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -141,7 +142,7 @@ public final class OHealthNotificationAccessHook {
 
     private static void scheduleRetry(Context context) {
         if (context == null || !"com.heytap.health:transport".equals(android.app.Application.getProcessName())) return;
-        Handler handler = new Handler(Looper.getMainLooper());
+        Handler handler = HookRuntime.main();
         long[] waits = {15_000L, 30_000L, 60_000L};
         handler.postDelayed(() -> retry(context, handler, waits, 0), waits[0]);
     }

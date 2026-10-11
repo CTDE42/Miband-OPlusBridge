@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.miam1ku.mibandoplusbridge.hook;
 
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.HookRuntime;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -9,9 +10,9 @@ import android.media.AudioManager;
 import android.media.MediaMetadata;
 import android.media.session.PlaybackState;
 import android.os.Bundle;
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XC_MethodHook;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedBridge;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedHelpers;
 import io.github.miam1ku.mibandoplusbridge.integration.HostNotifyProvider;
 import io.github.miam1ku.mibandoplusbridge.notify.FindPhone;
 import io.github.miam1ku.mibandoplusbridge.notify.NativeMusic;
@@ -57,7 +58,7 @@ public final class OHealthMusicHook {
         XposedBridge.hookAllMethods(presenter, "sendMusicCloseInfo", mirror);
         XposedBridge.hookAllMethods(presenter, "responseTotalInfo", mirror);
         if (!"com.heytap.health:transport".equals(process)) return;
-        app.registerReceiver(new BroadcastReceiver() {
+        HookRuntime.receive(app, new BroadcastReceiver() {
             @Override public void onReceive(Context receiverContext, Intent intent) {
                 if (intent == null || !NativeMusic.ACTION.equals(intent.getAction())) return;
                 if (intent.getBooleanExtra("refresh", false)) refresh(loader);

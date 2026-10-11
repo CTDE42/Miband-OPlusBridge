@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.miam1ku.mibandoplusbridge.hook;
 
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.HookRuntime;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Bundle;
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedHelpers;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XC_MethodHook;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedHelpers;
 import io.github.miam1ku.mibandoplusbridge.integration.HostNotifyProvider;
 import io.github.miam1ku.mibandoplusbridge.notify.FindPhone;
 
@@ -26,7 +27,7 @@ public final class OHealthFindPhoneHook {
         if (!"com.heytap.health".equals(android.app.Application.getProcessName())) return;
         Context app = context.getApplicationContext() == null ? context : context.getApplicationContext();
         IntentFilter filter = new IntentFilter(FindPhone.ACTION);
-        app.registerReceiver(new BroadcastReceiver() {
+        HookRuntime.receive(app, new BroadcastReceiver() {
             @Override public void onReceive(Context receiverContext, Intent intent) {
                 if (intent == null || !FindPhone.ACTION.equals(intent.getAction())) return;
                 if (intent.getBooleanExtra("start", false)) play(loader);

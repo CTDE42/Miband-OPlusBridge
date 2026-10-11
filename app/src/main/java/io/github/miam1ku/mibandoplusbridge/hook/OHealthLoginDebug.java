@@ -4,8 +4,9 @@ package io.github.miam1ku.mibandoplusbridge.hook;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Process;
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.HookRuntime;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XC_MethodHook;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedBridge;
 import java.util.Locale;
 
 /** Logs the health login jump and the crash that restarts the process. No account ids or tokens. */
@@ -60,12 +61,23 @@ public final class OHealthLoginDebug {
         if (wrapping) return;
         Thread.UncaughtExceptionHandler current = Thread.getDefaultUncaughtExceptionHandler();
         if (current instanceof Tap) return;
+        Tap tap = new Tap(current);
         wrapping = true;
         try {
-            Thread.setDefaultUncaughtExceptionHandler(new Tap(current));
+            Thread.setDefaultUncaughtExceptionHandler(tap);
         } finally {
             wrapping = false;
         }
+        // The handler is process-wide. A hot reload must give the host its own handler back.
+        HookRuntime.track(() -> {
+            if (Thread.getDefaultUncaughtExceptionHandler() != tap) return;
+            wrapping = true;
+            try {
+                Thread.setDefaultUncaughtExceptionHandler(tap.next);
+            } finally {
+                wrapping = false;
+            }
+        });
     }
 
     private static void log(String line) {
@@ -77,7 +89,7 @@ public final class OHealthLoginDebug {
         StackTraceElement[] frames = new Throwable().getStackTrace();
         for (StackTraceElement frame : frames) {
             String type = frame.getClassName();
-            if (type.startsWith("io.github.miam1ku.") || type.startsWith("de.robv.android.xposed.")) continue;
+            if (type.startsWith("io.github.miam1ku.")) continue;
             if (type.startsWith("com.heytap.") || type.startsWith("com.oplus.")
                     || type.startsWith("com.platform.")) {
                 return " from=" + frame.getClassName() + "." + frame.getMethodName();
@@ -113,7 +125,7 @@ public final class OHealthLoginDebug {
                 for (StackTraceElement frame : cursor.getStackTrace()) {
                     if (shown == 6) break;
                     String type = frame.getClassName();
-                    if (type.startsWith("de.robv.android.xposed.")) continue;
+                    if (type.startsWith("io.github.miam1ku.mibandoplusbridge.hook.xposed.")) continue;
                     line.append(" at ").append(type).append('.').append(frame.getMethodName());
                     shown++;
                 }

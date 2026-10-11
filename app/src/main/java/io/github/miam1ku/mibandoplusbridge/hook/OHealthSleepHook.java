@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.miam1ku.mibandoplusbridge.hook;
 
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.HookRuntime;
 import android.content.Context;
 import android.content.Intent;
 import android.database.ContentObserver;
@@ -13,9 +14,9 @@ import android.os.Looper;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XC_MethodHook;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedBridge;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedHelpers;
 import io.github.miam1ku.mibandoplusbridge.data.HealthRecord;
 import io.github.miam1ku.mibandoplusbridge.integration.DeviceCardProvider;
 import io.github.miam1ku.mibandoplusbridge.integration.HealthQueueProvider;
@@ -42,7 +43,7 @@ public final class OHealthSleepHook {
     private static final String LOAD = "com.heytap.health.sleep.day.util.SleepDataLoadUtils";
     private static final String HISTORY = "com.heytap.health.sleep.SleepHistoryActivity";
     private static final String[] COLUMNS = {"recordId", "revision", "record"};
-    private static final Handler MAIN = new Handler(Looper.getMainLooper());
+    private static final Handler MAIN = HookRuntime.main();
     private static final Map<Object, Surface> HOMES = new WeakHashMap<>();
     private static final Map<Object, DaySurface> DAYS = new WeakHashMap<>();
     private static final Map<Object, Navigation> NAVIGATION = new WeakHashMap<>();
@@ -73,8 +74,7 @@ public final class OHealthSleepHook {
         manager = singleton("com.heytap.health.devicemanager.client.DMHeytap", "managerApi");
         allRole = singleton("com.heytap.health.devicemanager.client.role.DeviceBasegetRole$All", "INSTANCE");
         accountCompanion = singleton("com.heytap.device.data.storage.DataRepositoryHelper", "Companion");
-        HandlerThread thread = new HandlerThread("OplusBandSleepRead");
-        thread.start();
+        HandlerThread thread = HookRuntime.thread("OplusBandSleepRead");
         worker = new Handler(thread.getLooper());
         hookHome();
         hookDay();
@@ -109,8 +109,8 @@ public final class OHealthSleepHook {
                 requestLoad();
             }
         };
-        context.getContentResolver().registerContentObserver(HealthQueueProvider.RECORDS_URI, true, observer);
-        context.getContentResolver().registerContentObserver(DeviceCardProvider.URI, false, observer);
+        HookRuntime.observe(context.getContentResolver(), HealthQueueProvider.RECORDS_URI, true, observer);
+        HookRuntime.observe(context.getContentResolver(), DeviceCardProvider.URI, false, observer);
         installed = true;
         requestLoad();
     }

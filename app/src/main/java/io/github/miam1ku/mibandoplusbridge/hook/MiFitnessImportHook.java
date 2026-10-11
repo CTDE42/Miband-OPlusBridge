@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.miam1ku.mibandoplusbridge.hook;
 
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.HookRuntime;
 import android.content.Context;
 import android.os.Bundle;
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XC_MethodHook;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedBridge;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedHelpers;
 import io.github.miam1ku.mibandoplusbridge.data.AuthToken;
 import io.github.miam1ku.mibandoplusbridge.integration.CredentialProvider;
 import java.lang.reflect.Method;
@@ -24,11 +25,7 @@ public final class MiFitnessImportHook {
         if (!convert.getReturnType().getName().equals("com.xiaomi.wearable.core.DeviceInfo")) {
             throw new NoSuchMethodException("HOST_VERSION_UNSUPPORTED");
         }
-        ExecutorService writer = Executors.newSingleThreadExecutor(r -> {
-            Thread thread = new Thread(r, "OplusBandImport");
-            thread.setDaemon(true);
-            return thread;
-        });
+        ExecutorService writer = HookRuntime.worker("OplusBandImport", 0);
         AtomicBoolean pending = new AtomicBoolean();
         XposedBridge.hookMethod(convert, new XC_MethodHook() {
             @Override protected void afterHookedMethod(MethodHookParam param) {

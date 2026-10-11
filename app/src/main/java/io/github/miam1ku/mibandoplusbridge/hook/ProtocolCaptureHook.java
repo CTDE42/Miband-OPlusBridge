@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.miam1ku.mibandoplusbridge.hook;
 
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.HookRuntime;
 import android.content.Context;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.util.Log;
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XC_MethodHook;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedBridge;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedHelpers;
 import io.github.miam1ku.mibandoplusbridge.BuildConfig;
 import io.github.miam1ku.mibandoplusbridge.data.ProtocolCaptureStore;
 import io.github.miam1ku.mibandoplusbridge.integration.CredentialProvider;
@@ -23,12 +24,7 @@ public final class ProtocolCaptureHook {
 
     public static void install(Context context, ClassLoader loader) throws Exception {
         if (!BuildConfig.DEBUG) return;
-        var writer = new ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS,
-                new ArrayBlockingQueue<>(64), runnable -> {
-                    Thread thread = new Thread(runnable, "OplusBandProtocolCapture");
-                    thread.setDaemon(true);
-                    return thread;
-                });
+        var writer = HookRuntime.worker("OplusBandProtocolCapture", 64);
         Class<?> api = Class.forName("com.xiaomi.wearable.wear.api.WearApiCall", false, loader);
         Class<?> callback = Class.forName("com.xiaomi.wearable.core.ICallback", false, loader);
         Class<?> result = Class.forName("com.xiaomi.wearable.core.WearApiResult", false, loader);

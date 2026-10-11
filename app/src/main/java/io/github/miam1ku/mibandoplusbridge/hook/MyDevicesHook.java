@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.miam1ku.mibandoplusbridge.hook;
 
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.HookRuntime;
 import android.app.Application;
 import android.app.Instrumentation;
 import android.content.Context;
@@ -10,9 +11,9 @@ import android.database.Cursor;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.util.Log;
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XC_MethodHook;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedBridge;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedHelpers;
 import io.github.miam1ku.mibandoplusbridge.integration.DeviceCardProvider;
 import io.github.miam1ku.mibandoplusbridge.integration.NativePanel;
 import java.lang.reflect.Method;
@@ -37,6 +38,7 @@ public final class MyDevicesHook {
     private static final String PACKAGE = "io.github.miam1ku.mibandoplusbridge";
     private static final String MANAGER = "com.heytap.mydevices.core.config.DeviceAppConfigManager";
     private static final String APP_AGENT = "com.heytap.mydevices.core.agent.AppAgentManager";
+    private static final String CARRIED_OBSERVER = "mydevices.cardObserver";
     private static volatile ObserverSession active;
 
     private MyDevicesHook() {}
@@ -98,6 +100,11 @@ public final class MyDevicesHook {
                 }
             });
         }
+        // A hot reload stops the old observer thread. The host does not register again, so resume
+        // with the observer it gave the previous generation.
+        HookRuntime.track(MyDevicesHook::unregister);
+        Object carried = HookRuntime.carried(CARRIED_OBSERVER);
+        if (observerType.isInstance(carried)) register(context, carried, removed, added, updated);
         XposedBridge.hookMethod(register, new XC_MethodHook() {
             @Override protected void afterHookedMethod(MethodHookParam param) {
                 if (!param.hasThrowable() && PACKAGE.equals(param.args[0])
@@ -108,7 +115,9 @@ public final class MyDevicesHook {
         });
         XposedBridge.hookMethod(unregister, new XC_MethodHook() {
             @Override protected void beforeHookedMethod(MethodHookParam param) {
-                if (PACKAGE.equals(param.args[0])) unregister();
+                if (!PACKAGE.equals(param.args[0])) return;
+                HookRuntime.carry(CARRIED_OBSERVER, null);
+                unregister();
             }
         });
         Log.i(TAG, "DEVICE_CARD_BIND cache=" + cache.getName()
@@ -352,6 +361,7 @@ public final class MyDevicesHook {
                                                Method removed, Method added, Method updated) {
         if (active != null && active.observer == observer) return;
         unregister();
+        HookRuntime.carry(CARRIED_OBSERVER, observer);
         HandlerThread thread = new HandlerThread("band-device-card-observer");
         thread.start();
         ObserverSession session = new ObserverSession(context.getApplicationContext(), observer,

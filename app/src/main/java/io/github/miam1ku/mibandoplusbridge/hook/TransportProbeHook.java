@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.miam1ku.mibandoplusbridge.hook;
 
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.HookRuntime;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.content.Context;
 import android.os.Bundle;
 import android.util.Log;
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XC_MethodHook;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedBridge;
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedHelpers;
 import io.github.miam1ku.mibandoplusbridge.data.AuthToken;
 import io.github.miam1ku.mibandoplusbridge.integration.CredentialProvider;
 import java.util.Locale;
@@ -25,12 +26,7 @@ public final class TransportProbeHook {
     private TransportProbeHook() {}
 
     public static void install(Context context, ClassLoader loader) throws Exception {
-        var writer = new ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS,
-                new ArrayBlockingQueue<>(16), runnable -> {
-                    Thread thread = new Thread(runnable, "OplusBandTransportProbe");
-                    thread.setDaemon(true);
-                    return thread;
-                });
+        var writer = HookRuntime.worker("OplusBandTransportProbe", 16);
         Class<?> apiClass = Class.forName("com.xiaomi.wearable.wear.api.WearApiCall", false, loader);
         Class<?> infoClass = Class.forName("com.xiaomi.wearable.core.DeviceInfo", false, loader);
         XC_MethodHook observeApi = new XC_MethodHook() {
