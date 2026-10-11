@@ -15,16 +15,24 @@
 
 ## 安装
 
-1. 安装 [LSPosed](https://github.com/LSPosed/LSPosed)（Zygisk）。
+1. 安装支持 libxposed API 102 的框架（Zygisk），例如 [Vector](https://github.com/JingMatrix/Vector)。1.6.8 之后的版本是 API 102 现代模块，只支持旧版 Xposed API（≤ 100）的 LSPosed 不会加载它。
 2. 安装本模块 APK，在 LSPosed 中启用，作用域勾选：
    - `com.heytap.mydevices`（设备空间）
    - `com.heytap.health`（OPPO 健康）
    - `com.mi.health`（导入绑定时需要）
    - `com.coloros.alarmclock`（时钟）
-3. 在 KernelSU 里对本应用授权。
+3. 在 KernelSU 里对本应用授权。拿到 root 后，本应用会在 ColorOS 里给自己和 OPPO 健康打开「自启动」和「关联启动」。没有这两项，更新模块后 OPPO 健康拉不起桥接，要手动打开一次本应用。
 4. 打开「小米手环桥接」：检查 Root → 导入已配对手环 → 添加到健康。导入时会记录连接参数；若首页提示「连接参数丢失」，先恢复官方管理，再在小米运动健康中重连一次手环。
-5. 强停「设备空间」和「OPPO 健康」后再打开。
+5. 第一次安装，或从 1.6.8 及以前的版本升级时，强停「设备空间」和「OPPO 健康」后再打开。之后的更新会热重载，不用再强停。
 旧包名 `io.github.oplusband.bridge` 与本包不能共存数据。换包后需重新导入。
+
+## 热重载
+
+模块在 `META-INF/xposed/module.prop` 里声明 `autoHotReload=true`。宿主进程在运行时安装新版 APK，框架会在宿主里换成新代码，不重启宿主：旧代码先停掉自己的线程、广播接收器和内容观察者，新代码移除旧 hook 并重新装上。已经打开的页面要刷新一次才显示新代码画的内容。
+
+- 只有 versionCode 变了才会触发。开发时用 `python3 tools/build.py :app:assembleDebug -PhotReloadVersionCode=<更大的数>`，再 `adb install -r`。之后要装回正常版本号，用 `adb install -r -d`。
+- 被系统冻结的后台进程收不到热重载，下次启动时直接加载新版本。
+- 1.6.8 及以前是旧版 API 模块，从它们升级的那一次不能热重载。
 
 ## 协议测试
 

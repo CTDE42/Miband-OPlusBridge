@@ -76,6 +76,7 @@ public final class OwnershipController {
                 throw new Failure("OFFICIAL_DISABLE_UNCONFIRMED");
             }
             ensureDoze();
+            ensureStartupAllowed();
             if (!state.edit().putBoolean("ownsDisable", true).putBoolean("transitionPending", false)
                     .putString("mode", "NATIVE").commit()) throw new Failure("OWNERSHIP_STORAGE_FAILED");
             if (officialState() != PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER) {
@@ -165,10 +166,37 @@ public final class OwnershipController {
     public void keepAwake() {
         if (!probeRoot()) return;
         ensureDoze();
+        String startup = ensureStartupAllowed();
+        android.util.Log.i("OplusBandBridge", "STARTUP_GRANT "
+                + (startup == null ? "failed" : startup.replace('\n', ' ')));
         try {
             execute("cmd appops set " + BRIDGE + " RUN_ANY_IN_BACKGROUND allow");
             execute("cmd appops set " + BRIDGE + " RUN_IN_BACKGROUND allow");
         } catch (Failure ignored) { }
+    }
+
+    /**
+     * ColorOS「自启动」and「关联启动」for the bridge and OPPO 健康. Without them the system refuses to
+     * start the bridge for OPPO 健康's provider calls and for MY_PACKAGE_REPLACED, so after an update
+     * OPPO 健康 sees {@code Unknown authority} until the bridge is opened by hand.
+     * Returns the helper output, or null when it could not run.
+     */
+    public String ensureStartupAllowed() {
+        String command = startupGrantCommand(context.getApplicationInfo().sourceDir);
+        if (command == null) return null;
+        try {
+            return execute(command, 20);
+        } catch (Failure failed) {
+            return null;
+        }
+    }
+
+    /** Fixed class and packages. The APK path comes from PackageManager and is checked. */
+    static String startupGrantCommand(String apkPath) {
+        if (apkPath == null || !apkPath.matches("/data/app/[A-Za-z0-9._~=+/-]+/base\\.apk")
+                || apkPath.contains("..")) return null;
+        return "CLASSPATH=" + apkPath + " /system/bin/app_process /system/bin "
+                + RootStartupGrant.class.getName() + " " + BRIDGE + " com.heytap.health";
     }
 
     private void ensureDoze() {
