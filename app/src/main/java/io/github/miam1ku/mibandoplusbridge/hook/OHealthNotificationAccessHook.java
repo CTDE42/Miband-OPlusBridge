@@ -16,8 +16,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * OHealth's listener API stays false on this ROM and then disable/enable-loops the service.
- * Once the secure setting lists it, stop is ignored. Run is replaced with {@code requestRebind}
- * so a listed but unbound service still starts.
+ * Once the secure setting lists it, stop is ignored and run is replaced with {@code requestRebind}.
+ * Until then, run is left alone so Health can enable a component that is still disabled.
  */
 public final class OHealthNotificationAccessHook {
     private static final String UTIL = "com.heytap.health.watch.notification.NotificationListenerUtil";
@@ -119,18 +119,29 @@ public final class OHealthNotificationAccessHook {
         };
     }
 
-    /** Stop is skipped once the band is registered or Health is already listed. Run never toggles the component. */
+    /** Listed listeners are rebound here. An unlisted listener keeps Health's own enable path. */
+    static boolean replaceRun(boolean listed) {
+        return listed;
+    }
+
+    /** Stop is ignored once the listener is listed or this band is registered. */
+    static boolean blockStop(boolean listed, boolean registered) {
+        return listed || registered;
+    }
+
     private static XC_MethodHook keep(boolean stop) {
         return new XC_MethodHook() {
             @Override protected void beforeHookedMethod(MethodHookParam param) {
                 Context context = contextArg(param);
                 if (context == null) return;
-                boolean hold = granted(context) || OHealthDeviceHook.registeredBand();
-                if (stop && !hold) return;
+                boolean listed = granted(context);
                 if (stop) {
+                    if (!blockStop(listed, OHealthDeviceHook.registeredBand())) return;
                     if (stopLogged.compareAndSet(false, true)) {
                         note(context, "OHEALTH_NOTIFICATION_LISTENER stop-blocked");
                     }
+                } else if (!replaceRun(listed)) {
+                    return;
                 } else {
                     rebind(context);
                 }

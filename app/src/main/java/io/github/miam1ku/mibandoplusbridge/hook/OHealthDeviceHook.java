@@ -124,7 +124,33 @@ public final class OHealthDeviceHook {
         });
         installDevicePages(loader);
         installNativePanel(loader);
+        installEmptyCloudCleanup(loader);
         observeSnapshots(loader);
+    }
+
+    /**
+     * An empty cloud list calls this on the main thread and disconnects every wearable,
+     * including this band. That binder call is what freezes the page.
+     */
+    static boolean skipEmptyCloudCleanup(boolean registered) {
+        return registered;
+    }
+
+    private static void installEmptyCloudCleanup(ClassLoader loader) {
+        try {
+            Class<?> fragment = XposedHelpers.findClass(
+                    "com.heytap.health.device.tab.NewDeviceFragment", loader);
+            XposedBridge.hookAllMethods(fragment, "cleanAndDisconnect", new XC_MethodHook() {
+                @Override protected void beforeHookedMethod(MethodHookParam param) {
+                    if (!skipEmptyCloudCleanup(registeredBand())) return;
+                    param.setResult(null);
+                    HookRuntime.log("OHEALTH_CLEAN_DISCONNECT_SKIPPED");
+                }
+            });
+        } catch (Throwable failure) {
+            HookRuntime.log("OHEALTH_CLEAN_DISCONNECT_HOOK_UNAVAILABLE "
+                    + failure.getClass().getSimpleName());
+        }
     }
 
     /** UI hooks only read this immutable, process-local IPC snapshot. */
