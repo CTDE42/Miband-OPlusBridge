@@ -3,6 +3,7 @@ package io.github.miam1ku.mibandoplusbridge.service;
 
 import android.content.Context;
 import io.github.miam1ku.mibandoplusbridge.data.LocalPrefs;
+import io.github.miam1ku.mibandoplusbridge.data.SessionLog;
 import android.content.pm.PackageManager;
 import android.os.UserManager;
 import io.github.miam1ku.mibandoplusbridge.HostIdentity;
@@ -93,7 +94,7 @@ public final class OwnershipController {
             }
             run("am force-stop com.mi.health", "OFFICIAL_STOP_FAILED");
         } catch (Failure error) {
-            rollbackPending(original);
+            if (!rollbackPending(original)) throw new Failure("OWNERSHIP_ROLLBACK_FAILED");
             throw error;
         }
         } finally {
@@ -138,18 +139,25 @@ public final class OwnershipController {
         }
     }
 
-    private void rollbackPending(int original) {
+    /** 回滚把官方包恢复到接管前的启用状态。失败时小米运动健康会停在停用，调用方把这个结果交给界面。 */
+    private boolean rollbackPending(int original) {
         try {
             restorePackage(original);
-            if (officialState() == original) {
-                dropDoze();
-                if (!state.edit().putString("mode", "OFFICIAL").putBoolean("ownsDisable", false)
-                        .putBoolean("transitionPending", false).remove("originalEnabled")
-                        .remove("officialRestored").remove("dozeAdded").commit()) {
-                    throw new Failure("OWNERSHIP_STORAGE_FAILED");
-                }
+            if (officialState() != original) {
+                SessionLog.line(context, "ownership rollback unconfirmed state=" + officialState());
+                return false;
             }
-        } catch (Failure ignored) {
+            dropDoze();
+            if (!state.edit().putString("mode", "OFFICIAL").putBoolean("ownsDisable", false)
+                    .putBoolean("transitionPending", false).remove("originalEnabled")
+                    .remove("officialRestored").remove("dozeAdded").commit()) {
+                SessionLog.line(context, "ownership rollback failed OWNERSHIP_STORAGE_FAILED");
+                return false;
+            }
+            return true;
+        } catch (Failure failed) {
+            SessionLog.line(context, "ownership rollback failed " + failed.code);
+            return false;
         }
     }
 

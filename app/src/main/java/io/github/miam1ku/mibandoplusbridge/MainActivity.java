@@ -780,6 +780,7 @@ public final class MainActivity extends AppCompatActivity {
             case "DEVICE_NOT_REGISTERED" -> "请先添加设备。";
             case "DIAGNOSTIC_SOCKET_STILL_ACTIVE" -> "连接尚未完全停止，请稍后重试恢复官方管理。";
             case "OWNERSHIP_RECOVERY_REQUIRED", "OFFICIAL_ALREADY_DISABLED" -> "请先恢复官方管理并确认官方应用已启用，再重试接管。";
+            case "OWNERSHIP_ROLLBACK_FAILED" -> "接管回滚没有完成，小米运动健康可能仍是停用。请再试一次恢复官方管理。";
             default -> "操作未完成，请重试；必要时先恢复官方管理。";
         };
     }
