@@ -61,6 +61,20 @@ public final class HookRuntime {
         write(Log.WARN, line, failure);
     }
 
+    /** 一次 hook 安装。宿主方法对不上时记下 token，其余安装继续。 */
+    public static void tryHook(String token, ThrowingRunnable install) {
+        try {
+            install.run();
+        } catch (Throwable failure) {
+            log(token, failure);
+        }
+    }
+
+    @FunctionalInterface
+    public interface ThrowingRunnable {
+        void run() throws Throwable;
+    }
+
     /** Logging never fails the hook that logs. */
     private static void write(int priority, String line, Throwable failure) {
         try {

@@ -579,16 +579,14 @@ public final class OHealthDeviceHook {
             HookRuntime.log("OHEALTH_NOTIFY_DEVICE_UNAVAILABLE "
                     + failure.getClass().getSimpleName());
         }
-        try {
-            XposedHelpers.findAndHookMethod(
-                    "com.heytap.health.devicemanager.devicetype.DeviceTypeUtil", loader,
-                    "getBoundDeviceInfoByMac", String.class, new XC_MethodHook() {
-                        @Override protected void beforeHookedMethod(MethodHookParam param) {
-                            Object info = bandDevice(loader, param.args.length == 0 ? null : param.args[0]);
-                            if (info != null) param.setResult(info);
-                        }
-                    });
-        } catch (Throwable ignored) { }
+        HookRuntime.tryHook("OHEALTH_BOUND_INFO_BY_MAC_UNAVAILABLE", () -> XposedHelpers.findAndHookMethod(
+                "com.heytap.health.devicemanager.devicetype.DeviceTypeUtil", loader,
+                "getBoundDeviceInfoByMac", String.class, new XC_MethodHook() {
+                    @Override protected void beforeHookedMethod(MethodHookParam param) {
+                        Object info = bandDevice(loader, param.args.length == 0 ? null : param.args[0]);
+                        if (info != null) param.setResult(info);
+                    }
+                }));
         try {
             Class<?> hey = XposedHelpers.findClass("com.heytap.health.devicemanager.client.DMHeytap", loader);
             java.lang.reflect.Field api = hey.getField("managerApi");
@@ -675,30 +673,23 @@ public final class OHealthDeviceHook {
             HookRuntime.log("OHEALTH_NOTIFY_ABILITY_UNAVAILABLE "
                     + failure.getClass().getSimpleName());
         }
-        try {
-            XposedHelpers.findAndHookMethod(
-                    "com.heytap.health.deviceability.NotificationBaseAbilityDevice", loader,
-                    "isSupportFluid", new XC_MethodHook() {
-                        @Override protected void beforeHookedMethod(MethodHookParam param) {
-                            try {
-                                if (isBand(param.thisObject)) param.setResult(false);
-                            } catch (Throwable ignored) { }
-                        }
-                    });
-        } catch (Throwable ignored) { }
+        HookRuntime.tryHook("OHEALTH_FLUID_HOOK_UNAVAILABLE", () -> XposedHelpers.findAndHookMethod(
+                "com.heytap.health.deviceability.NotificationBaseAbilityDevice", loader,
+                "isSupportFluid", new XC_MethodHook() {
+                    @Override protected void beforeHookedMethod(MethodHookParam param) {
+                        if (isBand(param.thisObject)) param.setResult(false);
+                    }
+                }));
         XC_MethodHook bandFalse = new XC_MethodHook() {
             @Override protected void beforeHookedMethod(MethodHookParam param) {
-                try {
-                    if (isBand(param.thisObject)) param.setResult(false);
-                } catch (Throwable ignored) { }
+                if (isBand(param.thisObject)) param.setResult(false);
             }
         };
         for (String method : new String[]{"isSecondaryDevice", "isFamilyDevice"}) {
-            try {
-                XposedHelpers.findAndHookMethod(
-                        "com.heytap.health.devicemanager.deviceability.DeviceInfo", loader,
-                        method, bandFalse);
-            } catch (Throwable ignored) { }
+            HookRuntime.tryHook("OHEALTH_DEVICE_ROLE_HOOK_UNAVAILABLE " + method, () ->
+                    XposedHelpers.findAndHookMethod(
+                            "com.heytap.health.devicemanager.deviceability.DeviceInfo", loader,
+                            method, bandFalse));
         }
         try {
             Class<?> fragment = XposedHelpers.findClass(
@@ -789,18 +780,16 @@ public final class OHealthDeviceHook {
             HookRuntime.log("OHEALTH_PANEL_DATA_UNAVAILABLE "
                     + failure.getClass().getSimpleName());
         }
-        try {
-            XposedHelpers.findAndHookMethod(
-                    "com.heytap.health.linkage.ui.DeviceDetailsViewModel", loader,
-                    "reconnectDevice", new XC_MethodHook() {
-                        @Override protected void beforeHookedMethod(MethodHookParam param) {
-                            if (!ourBand(XposedHelpers.getObjectField(param.thisObject, "mMac"),
-                                    XposedHelpers.getObjectField(param.thisObject, "mDeviceId"))) return;
-                            param.setResult(null);
-                            requestSync();
-                        }
-                    });
-        } catch (Throwable ignored) { }
+        HookRuntime.tryHook("OHEALTH_RECONNECT_HOOK_UNAVAILABLE", () -> XposedHelpers.findAndHookMethod(
+                "com.heytap.health.linkage.ui.DeviceDetailsViewModel", loader,
+                "reconnectDevice", new XC_MethodHook() {
+                    @Override protected void beforeHookedMethod(MethodHookParam param) {
+                        if (!ourBand(XposedHelpers.getObjectField(param.thisObject, "mMac"),
+                                XposedHelpers.getObjectField(param.thisObject, "mDeviceId"))) return;
+                        param.setResult(null);
+                        requestSync();
+                    }
+                }));
         try {
             XposedHelpers.findAndHookMethod(
                     "com.heytap.health.linkage.ui.DeviceDetailsActivity", loader,
@@ -831,19 +820,17 @@ public final class OHealthDeviceHook {
             HookRuntime.log("OHEALTH_PANEL_WATCHFACE_UNAVAILABLE "
                     + failure.getClass().getSimpleName());
         }
-        try {
-            XposedHelpers.findAndHookMethod(
-                    "com.oplus.mydevices.sdk.DeviceInfoManager", loader,
-                    "queryDeviceById", String.class, new XC_MethodHook() {
-                        @Override protected void afterHookedMethod(MethodHookParam param) {
-                            if (param.args.length == 0) return;
-                            Bundle shown = liveSnapshot();
-                            Object info = param.getResult();
-                            if (shown == null || info == null || !duplicateSpaceCard(info)) return;
-                            patchSdkDevice(info, shown);
-                        }
-                    });
-        } catch (Throwable ignored) { }
+        HookRuntime.tryHook("OHEALTH_DEVICE_QUERY_HOOK_UNAVAILABLE", () -> XposedHelpers.findAndHookMethod(
+                "com.oplus.mydevices.sdk.DeviceInfoManager", loader,
+                "queryDeviceById", String.class, new XC_MethodHook() {
+                    @Override protected void afterHookedMethod(MethodHookParam param) {
+                        if (param.args.length == 0) return;
+                        Bundle shown = liveSnapshot();
+                        Object info = param.getResult();
+                        if (shown == null || info == null || !duplicateSpaceCard(info)) return;
+                        patchSdkDevice(info, shown);
+                    }
+                }));
         guardDuplicateSpaceCard(loader);
     }
 
@@ -965,7 +952,9 @@ public final class OHealthDeviceHook {
             mutable.addAll(kept);
             Object adapter = XposedHelpers.getObjectField(panel, adapterField);
             if (adapter != null) XposedHelpers.callMethod(adapter, "notifyDataSetChanged");
-        } catch (Throwable ignored) { }
+        } catch (Throwable failure) {
+            HookRuntime.log("OHEALTH_WATCH_FACE_STRIP_UNAVAILABLE", failure);
+        }
     }
 
     /**
@@ -1006,12 +995,14 @@ public final class OHealthDeviceHook {
                 hooked++;
             }
         }
-        try {
+        int[] guarded = { hooked };
+        HookRuntime.tryHook("OHEALTH_WATCH_STATE_HOOK_UNAVAILABLE", () -> {
             XposedHelpers.findAndHookMethod(
                     "com.heytap.health.linkage.watch.WatchController", loader,
                     "updateDeviceState", infoType, boolean.class, patch);
-            hooked++;
-        } catch (Throwable ignored) { }
+            guarded[0]++;
+        });
+        hooked = guarded[0];
         HookRuntime.log(hooked == 0 ? "DEVICE_SPACE_GUARD_UNAVAILABLE" : "DEVICE_SPACE_GUARD " + hooked);
     }
 
@@ -1229,12 +1220,10 @@ public final class OHealthDeviceHook {
                     + failure.getClass().getSimpleName());
         }
         if ("DeviceWatchFaceItem".equals(className.substring(className.lastIndexOf('.') + 1))) {
-            try {
-                XposedHelpers.findAndHookMethod(className, loader, "initData", Object.class, hideRow);
-            } catch (Throwable ignored) { }
-            try {
-                XposedHelpers.findAndHookMethod(className, loader, "initView", hideRow);
-            } catch (Throwable ignored) { }
+            HookRuntime.tryHook("OHEALTH_WATCH_FACE_ROW_ALT_UNAVAILABLE initData", () ->
+                    XposedHelpers.findAndHookMethod(className, loader, "initData", Object.class, hideRow));
+            HookRuntime.tryHook("OHEALTH_WATCH_FACE_ROW_ALT_UNAVAILABLE initView", () ->
+                    XposedHelpers.findAndHookMethod(className, loader, "initView", hideRow));
         }
     }
 
