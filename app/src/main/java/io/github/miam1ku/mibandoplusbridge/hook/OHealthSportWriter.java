@@ -63,7 +63,7 @@ final class OHealthSportWriter {
         for (HealthRecord record : history(context, account, queued, "sport_session")) {
             HealthRecord track = match(record, tracks);
             String key = device + ":" + record.recordId;
-            String mark = record.revision + ":" + (track == null ? 0 : track.track.length()) + ":u2";
+            String mark = record.revision + ":" + (track == null ? 0 : track.track.length()) + ":u3";
             String saved;
             try {
                 saved = written.getString(key, "");
@@ -140,6 +140,11 @@ final class OHealthSportWriter {
         if (record.distance != null) json.put("totalDistance", record.distance);
         if (record.reps != null) json.put("totalSteps", record.reps);
         if (record.heart != null) json.put("avgHeartRate", record.heart);
+        if (record.distance != null && record.distance > 0) {
+            long pace = Math.round(seconds * 1000.0 / record.distance);
+            if (pace >= 30 && pace <= 7200) json.put("avgPace", pace);
+        }
+        if (record.bestPace != null) json.put("bestPace", record.bestPace);
         if (tracked) json.put("hasTrackPoint", true);
         return json.toString();
     }

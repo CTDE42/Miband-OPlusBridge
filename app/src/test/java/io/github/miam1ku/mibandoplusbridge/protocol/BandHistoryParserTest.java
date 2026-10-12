@@ -869,6 +869,7 @@ public final class BandHistoryParserTest {
             assertEquals(Integer.valueOf(1435), ride.measurements.get(0).calories);
             assertEquals(Integer.valueOf(143), ride.measurements.get(0).heart);
             assertEquals(Integer.valueOf(14355), ride.measurements.get(0).duration);
+            assertEquals(Integer.valueOf(114), ride.measurements.get(0).bestPace);
             assertEquals("+08:00", ride.measurements.get(0).timezone);
             var free = parser().parseFile(zipEntry(archive, "f4a9967a492a"));
             assertEquals("PARSED", free.parseStatus);
