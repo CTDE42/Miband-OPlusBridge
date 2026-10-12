@@ -16,6 +16,7 @@ import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedBridge;
 import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedHelpers;
 import io.github.miam1ku.mibandoplusbridge.HostIdentity;
 import io.github.miam1ku.mibandoplusbridge.data.HealthRecord;
+import io.github.miam1ku.mibandoplusbridge.integration.DeviceCardProvider;
 import io.github.miam1ku.mibandoplusbridge.integration.HealthQueueProvider;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
@@ -123,6 +124,12 @@ public final class OHealthHealthImportHook {
         HookRuntime.observe(context.getContentResolver(), HealthQueueProvider.RECORDS_URI, true,
                 new ContentObserver(null) {
                     @Override public void onChange(boolean selfChange) { request(); }
+                });
+        HookRuntime.observe(context.getContentResolver(), DeviceCardProvider.URI, false,
+                new ContentObserver(worker) {
+                    @Override public void onChange(boolean selfChange) {
+                        worker.post(OHealthHealthImportHook.this::publishCard);
+                    }
                 });
         XposedBridge.hookMethod(host.accountGetter, new XC_MethodHook() {
             @Override protected void afterHookedMethod(MethodHookParam param) {
@@ -438,6 +445,57 @@ public final class OHealthHealthImportHook {
         }
     }
 
+    private long publishedHeartAt;
+
+    /**
+     * The health card reads today's steps from {@code self/sport} and the latest heart rate from
+     * table 1008. Live band values have to land in those same stores, not only in the bridge snapshot.
+     */
+    private void publishCard() {
+        Bundle band = OHealthDeviceHook.registeredSnapshot();
+        if (band == null) return;
+        if (steps != null) {
+            try {
+                steps.publishSnapshot(context);
+            } catch (Throwable failure) {
+                Log.i("OplusBandBridge", "OHEALTH_STEP_CARD_UNAVAILABLE " + failure.getClass().getSimpleName());
+            }
+        }
+        OHealthLockCardHook.notifyCards(context);
+        int heart = band.getInt("heartRate", -1);
+        long at = band.getLong("heartRateAtMs", 0);
+        if (heart < 40 || heart > 220 || at <= 0 || at == publishedHeartAt) return;
+        try {
+            if (publishHeart(band, heart, at)) publishedHeartAt = at;
+        } catch (Throwable failure) {
+            Log.i("OplusBandBridge", "OHEALTH_HEART_CARD_UNAVAILABLE " + failure.getClass().getSimpleName());
+        }
+    }
+
+    /** One continuous sample in table 1008, the table {@code queryLastHeartRate} reads. */
+    private boolean publishHeart(Bundle band, int heart, long at) throws Exception {
+        String account = host.account();
+        if (!usableAccount(account)) return false;
+        Object api = host.api();
+        if (api == null) return false;
+        String deviceId = band.getString("deviceId", "");
+        if (deviceId.isBlank()) return false;
+        String zone = ZoneId.systemDefault().getId();
+        HealthRecord record = new HealthRecord("live-heart-" + at, deviceId, "heart_rate",
+                at, at + 60_000L, heart, null, 1, zone, "continuous", false);
+        if (!record.hostAccepts()) return false;
+        OHealthHealthModels model = host.models.get(OHealthHealthModels.Kind.HEART);
+        if (model == null) return false;
+        List<HealthRecord> rows = List.of(record);
+        if (host.read(api, account, model, rows).contains(model.key(account, record))) return true;
+        host.insertRows(api, model.kind.table, List.of(model.create(account, record)));
+        if (!host.read(api, account, model, rows).contains(model.key(account, record))) {
+            throw new IllegalStateException("HEART_CARD_UNCONFIRMED");
+        }
+        Log.i("OplusBandBridge", "OHEALTH_HEART_CARD table=" + model.kind.table);
+        return true;
+    }
+
     private void request() {
         if (scheduled.compareAndSet(false, true)) worker.post(work);
     }
@@ -479,6 +537,7 @@ public final class OHealthHealthImportHook {
             }
             drain();
             if (steps != null) steps.write(context);
+            publishCard();
             if (sports != null) sports.write(context);
             lastFailure = null;
             if (retrySoon) scheduleRetry(2_000);

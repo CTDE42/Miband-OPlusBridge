@@ -259,6 +259,12 @@ public final class EntryPoint extends XposedModule {
             probe("OHEALTH_IMPORT_HOOK_UNAVAILABLE");
         }
         try {
+            OHealthLockCardHook.install(context, loader);
+            probe("OHEALTH_LOCK_CARD_HOOK_INSTALLED");
+        } catch (Throwable incompatible) {
+            probe("OHEALTH_LOCK_CARD_HOOK_UNAVAILABLE");
+        }
+        try {
             OHealthSleepHook.install(context, loader);
             probe("OHEALTH_SLEEP_HOOK_INSTALLED");
         } catch (Throwable incompatible) {

@@ -120,6 +120,7 @@ final class OHealthStepWriter {
             }
         }
         publishToday(context, days, records);
+        publishSnapshot(context);
         String summary = "OHEALTH_STEP_IMPORT days=" + days.size()
                 + " inserted=" + inserted + " skipped=" + skipped + " chart=" + chart;
         Log.i("OplusBandBridge", summary);
@@ -360,6 +361,21 @@ final class OHealthStepWriter {
         return band > shown && band > 0;
     }
 
+    /**
+     * Official step daemon writes today's total through
+     * {@code content://com.heytap.health.sporthealthprovider/self/sport}. The health card reads that
+     * cache, not the bridge snapshot. Only {@code step} is sent so calorie and goals already there stay.
+     */
+    void publishSnapshot(Context context) {
+        Bundle band = OHealthDeviceHook.registeredSnapshot();
+        if (band == null) return;
+        long steps = band.getLong("stepsToday", -1);
+        if (!publishSteps(0, steps)) return;
+        ContentValues values = new ContentValues();
+        values.put("step", steps);
+        updateSportCache(context, values, steps);
+    }
+
     private void publishToday(Context context, List<BandHistoryParser.StepDay> days,
             List<HealthRecord> records) {
         BandHistoryParser.StepDay today = null;
@@ -367,29 +383,32 @@ final class OHealthStepWriter {
             if (isToday(day)) today = day;
         }
         if (today == null) return;
+        ContentValues values = new ContentValues();
+        values.put("step", today.steps);
+        if (today.calories >= 0) values.put("calorie", (double) today.calories);
+        if (today.distance >= 0) values.put("distance", today.distance / 1000.0);
+        values.put("duration", (double) activeMinutes(records, today));
+        if (today.moveAbout >= 0 && today.moveAbout <= Integer.MAX_VALUE) {
+            values.put("activityCount", (int) today.moveAbout);
+        }
+        updateSportCache(context, values, today.steps);
+        OHealthHomeMetricHook.requestReload();
+    }
+
+    private void updateSportCache(Context context, ContentValues values, long steps) {
         try {
             Class<?> adapter = Class.forName(
                     "com.heytap.health.core.provider.adapter.open.SportDataAdapter", false, host.loader);
             Object result = adapter.getMethod("querySportData", Context.class).invoke(null, context);
             if (!(result instanceof Bundle bundle)) throw new IllegalStateException("STEP_CACHE_BUNDLE");
-            if (publishSteps(bundle.getLong("step"), today.steps)) {
-                ContentValues values = new ContentValues();
-                values.put("step", today.steps);
-                if (today.calories >= 0) values.put("calorie", (double) today.calories);
-                if (today.distance >= 0) values.put("distance", today.distance / 1000.0);
-                values.put("duration", (double) activeMinutes(records, today));
-                if (today.moveAbout >= 0 && today.moveAbout <= Integer.MAX_VALUE) {
-                    values.put("activityCount", (int) today.moveAbout);
-                }
-                adapter.getMethod("updateSportData", Context.class, ContentValues.class)
-                        .invoke(null, context, values);
-            }
+            if (!publishSteps(bundle.getLong("step"), steps)) return;
+            adapter.getMethod("updateSportData", Context.class, ContentValues.class)
+                    .invoke(null, context, values);
         } catch (Throwable failure) {
             String unavailable = "OHEALTH_STEP_CACHE_UNAVAILABLE " + failure.getClass().getSimpleName();
             Log.i("OplusBandBridge", unavailable);
             XposedBridge.log("OplusBandBridge " + unavailable);
         }
-        OHealthHomeMetricHook.requestReload();
     }
 
     private static boolean isToday(BandHistoryParser.StepDay day) {
