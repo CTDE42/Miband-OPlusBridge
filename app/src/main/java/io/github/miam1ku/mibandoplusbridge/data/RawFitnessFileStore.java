@@ -288,13 +288,13 @@ public final class RawFitnessFileStore {
         synchronized (FILE_LOCK) {
             if (sportSummaryCurrent) return 0;
             SharedPreferences prefs = context.getSharedPreferences("oplusband-history", Context.MODE_PRIVATE);
-            if (prefs.getBoolean("sport-gps-v3", false)) {
+            if (prefs.getBoolean("sport-gps-v4", false)) {
                 sportSummaryCurrent = true;
                 return 0;
             }
             try {
                 int promoted = rewriteRejectedSport();
-                if (!prefs.edit().putBoolean("sport-gps-v3", true).commit()) {
+                if (!prefs.edit().putBoolean("sport-gps-v4", true).commit()) {
                     throw new IllegalStateException("SPORT_SUMMARY_MEMORY_FAILED");
                 }
                 sportSummaryCurrent = true;

@@ -64,7 +64,7 @@ final class OHealthSportWriter {
         for (HealthRecord record : history(context, account, queued, "sport_session")) {
             HealthRecord track = match(record, tracks);
             String key = device + ":" + record.recordId;
-            String mark = record.revision + ":" + (track == null ? 0 : track.track.length()) + ":u5";
+            String mark = record.revision + ":" + (track == null ? 0 : track.track.length()) + ":u6";
             String saved;
             try {
                 saved = written.getString(key, "");
@@ -73,11 +73,14 @@ final class OHealthSportWriter {
             }
             if (mark.equals(saved)) continue;
             try {
-                if (store(api, account, device, OHealthStepWriter.deviceCategory(band.getString("modelId", "")),
-                        record, track, !saved.isEmpty())) {
+                if (store(api, account, queued, device,
+                        OHealthStepWriter.deviceCategory(band.getString("modelId", "")),
+                        record, track)) {
                     if (!written.edit().putString(key, mark).commit()) {
                         throw new IllegalStateException("SPORT_IMPORT_MEMORY_FAILED");
                     }
+                } else {
+                    HookRuntime.log("OHEALTH_SPORT_UNCONFIRMED mode=" + record.value);
                 }
             } catch (Exception failure) {
                 HookRuntime.log("OHEALTH_SPORT_FAIL " + failure.getClass().getSimpleName());
@@ -94,8 +97,8 @@ final class OHealthSportWriter {
         return best;
     }
 
-    private boolean store(Object api, String account, String device, String category, HealthRecord record,
-            HealthRecord track, boolean replace) throws Exception {
+    private boolean store(Object api, String account, String queued, String device, String category,
+            HealthRecord record, HealthRecord track) throws Exception {
         int mode = record.value.intValue();
         Object row = created.newInstance();
         setAccount.invoke(row, account);
@@ -116,9 +119,10 @@ final class OHealthSportWriter {
             if (pace != null) data.put("pace", pace);
             setData.invoke(row, data.toString());
         }
-        if (replace) {
+        // An earlier import may sit under the bridge id. Delete both so the old row cannot stay on screen.
+        for (String id : queued.equals(device) ? List.of(device) : List.of(device, queued)) {
             try {
-                host.deleteRows(api, TABLE, account, device, record.startMs, record.startMs + 1);
+                host.deleteRows(api, TABLE, account, id, record.startMs, record.startMs + 1);
             } catch (Exception ignored) {
                 // A missing previous row still lets the new summary replace the map.
             }
@@ -128,7 +132,12 @@ final class OHealthSportWriter {
         for (Object saved : found) {
             if (!device.equals(getDevice.invoke(saved))) continue;
             if (((Number) getStart.invoke(saved)).longValue() != record.startMs) continue;
-            if (((Number) getMode.invoke(saved)).intValue() == mode) return true;
+            if (((Number) getMode.invoke(saved)).intValue() == mode) {
+                int samples = pace == null ? 0 : Math.max(0, (pace.split(",").length - 3) / 2);
+                HookRuntime.log("OHEALTH_SPORT mode=" + mode + " pace=" + samples
+                        + " best=" + (record.bestPace == null ? 0 : record.bestPace));
+                return true;
+            }
         }
         return false;
     }
