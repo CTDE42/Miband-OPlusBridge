@@ -186,7 +186,7 @@ public final class OwnershipController {
         if (!"0".equals(execute("id -u"))) throw new Failure("ROOT_REQUIRED");
     }
 
-    /** Doze whitelist plus background execution, so a swiped task does not freeze the bridge. */
+    /** Doze whitelist plus background execution, so a swiped task leaves the bridge running. */
     public void keepAwake() {
         if (!probeRoot()) return;
         try {

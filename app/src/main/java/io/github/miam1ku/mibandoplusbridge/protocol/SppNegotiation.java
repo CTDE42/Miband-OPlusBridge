@@ -23,7 +23,7 @@ public final class SppNegotiation {
 
     private SppNegotiation() {}
 
-    /** The caller owns the serial counter; a response does not have to echo this value. */
+    /** The caller owns the serial counter. A response may carry a different value. */
     public static byte[] versionRequest(int opcodeSerial) {
         if (opcodeSerial < 0 || opcodeSerial > 0xff) {
             throw new IllegalArgumentException("Startup opcode serial must be an unsigned byte");

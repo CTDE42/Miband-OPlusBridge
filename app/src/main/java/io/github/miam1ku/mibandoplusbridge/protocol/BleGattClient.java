@@ -400,7 +400,7 @@ final class BleGattClient implements AutoCloseable {
                         ? BleV1Codec.PAYLOAD_ACK : BleV1Codec.CHUNK_END_ACK);
                 SessionLog.line(context, "rx ble bytes=" + payload.length
                         + (activityChar ? " activity" : ""));
-                // The band already has the ACK. A full queue means this packet never reaches the caller, so the session stops instead of continuing with a gap. 
+                // The band already has the ACK. A full queue drops this packet before the caller, so the session stops instead of continuing with a gap. 
                 if (!incoming.offer(new Rx(payload, activityChar))) overflow();
             }
         } catch (IllegalArgumentException ignored) {

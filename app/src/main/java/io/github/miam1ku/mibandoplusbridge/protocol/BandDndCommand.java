@@ -27,7 +27,7 @@ import nodomain.freeyourgadget.gadgetbridge.proto.xiaomi.XiaomiProto;
      }
 
     /** Subtype 110. Mi Fitness names the phone's manual rule manual_zen_rule.
-     * watch_manual is the band's own rule and does not drive phone sync.
+     * watch_manual is the band's own rule. Phone sync follows manual_zen_rule.
      * activatedAt is unix seconds. The band stores the same unit on watch_manual;
      * the low 32 bits of epoch millis are about ten times smaller and lose the comparison. */
     public static XiaomiProto.Command phoneRules(boolean enabled, int activatedAt) {
@@ -68,7 +68,7 @@ import nodomain.freeyourgadget.gadgetbridge.proto.xiaomi.XiaomiProto;
         return null;
     }
 
-    /** Unix seconds. Values past 2038 do not fit this uint32. */
+    /** Unix seconds. This uint32 holds values through 2038. */
     public static int activatedAt(long epochMillis) {
         long seconds = epochMillis / 1000L;
         if (seconds <= 0 || seconds > Integer.MAX_VALUE) {

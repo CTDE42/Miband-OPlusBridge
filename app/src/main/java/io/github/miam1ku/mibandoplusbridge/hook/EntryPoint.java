@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * libxposed API 102 entry. The only Java entry, so the framework can hot reload it.
  *
- * <p>A hot reload does not replay package callbacks. The old generation stops its threads and
+ * <p>A hot reload skips the package callbacks. The old generation stops its threads and
  * listeners, then hands over each host package it saw: package name, class loader, and the
  * Application context once it exists. The new generation removes the old hooks and installs its
  * own. Pages the host already built keep what the old code drew on them until they refresh.</p>
@@ -110,7 +110,7 @@ public final class EntryPoint extends XposedModule {
     }
 
     /**
-     * Installs hooks for one host package. On first load the Application does not exist yet, so most
+     * Installs hooks for one host package. On first load the Application is still missing, so most
      * hooks wait for {@code Application.attach}. After a hot reload the saved context is used directly.
      */
     private void dispatch(Target load) {
@@ -206,9 +206,9 @@ public final class EntryPoint extends XposedModule {
     }
 
     /**
-     * LSPosed only relays the framework log into its own log on this device; a plain
-     * android.util.Log call from this module never showed up there. Write to both so a
-     * missing line means "not injected" rather than "logged on the invisible channel".
+     * LSPosed only relays the framework log into its own log on this device. A plain
+     * android.util.Log call from this module stayed off that page. Write to both so a
+     * missing line means the hook was not injected, rather than a log on the invisible channel.
      */
     private static void probe(String line) {
         HookRuntime.log(line);
@@ -325,8 +325,8 @@ public final class EntryPoint extends XposedModule {
     }
 
     /**
-     * An API save of table 1011 passes keep-old and never replaces totals.
-     * The corrected night has to overwrite the stacked summary.
+     * An API save of table 1011 passes keep-old and leaves the existing totals in place.
+     * The corrected night overwrites the stacked summary.
      */
     private static void installSleepStatReplace(ClassLoader loader) {
         XposedHelpers.findAndHookMethod(

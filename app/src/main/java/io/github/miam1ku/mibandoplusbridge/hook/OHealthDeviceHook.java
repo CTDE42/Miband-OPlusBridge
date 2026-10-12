@@ -340,7 +340,7 @@ public final class OHealthDeviceHook {
             }
             Object info = keepListed(controller, loader, shown);
             if (refreshView && info != null) {
-                // refreshView alone does not rebuild an empty wearable list. Feed the same host path.
+                // refreshView leaves an empty wearable list empty. Feed the same host path that fills it.
                 java.util.ArrayList<Object> seed = new java.util.ArrayList<>();
                 seed.add(info);
                 XposedHelpers.callMethod(controller, "refreshWearableDeviceList", seed, new java.util.ArrayList<>(), "band snapshot");
@@ -1249,7 +1249,7 @@ public final class OHealthDeviceHook {
                     forwardHostNotification(param.args[0], true);
                 }
             });
-            // Forward before skipping. Once this call is swallowed, the register center does not see the post.
+            // Forward before skipping. Once this call is swallowed, the post stops at the event manager.
             String manager = "com.heytap.health.watch.notification.impl.transceiver.NotificationEventManager";
             XposedHelpers.findAndHookMethod(manager, loader, "onNotificationPosted", bean, new XC_MethodHook() {
                 @Override protected void beforeHookedMethod(MethodHookParam param) {

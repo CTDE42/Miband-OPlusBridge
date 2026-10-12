@@ -165,8 +165,8 @@ public final class OHealthHealthImportHook {
     /**
      * The setup activity treats a missing login task as cancellation and writes tourist mode
      * on later launches too, even when the system account is still signed in. Put that account
-     * back whenever Health comes up as a guest. Do not cache the account from inside
-     * {@code setIsInTouristMode}: that re-enters the login screen and kills the process.
+     * back whenever Health comes up as a guest. The account is read outside
+     * {@code setIsInTouristMode}, because caching it there re-enters the login screen and kills the process.
      */
     private void restoreSystemAccount() {
         try {
@@ -215,8 +215,8 @@ public final class OHealthHealthImportHook {
     }
     /**
      * LoginCheckStage writes tourist mode when the SDK is not initialized yet.
-     * Ignore that write when the stored account is still real. Do not call back
-     * into the setter from here.
+     * Ignore that write when the stored account is still real. The setter stays outside this hook,
+     * because calling it from here re-enters the same method.
      */
     private void keepStoredAccount() {
         try {
@@ -427,7 +427,7 @@ public final class OHealthHealthImportHook {
         }
     }
 
-    /** Last session's login flag or SSO. Does not call isSystemLogin. */
+    /** Last session's login flag or SSO. isSystemLogin stays out of this read. */
     private boolean accountStillSigned() {
         try {
             Class<?> prefsType = Class.forName("com.heytap.health.base.sp.SPUtils", false, host.loader);
@@ -926,7 +926,7 @@ public final class OHealthHealthImportHook {
             type.getMethod("setDeviceUniqueId", String.class).invoke(option, device);
             type.getMethod("setDataTable", int.class).invoke(option, table);
             type.getMethod("setStartTime", long.class).invoke(option, Math.max(0, start));
-            // end is exclusive. Inclusive host filters must not eat the next real sample.
+            // end is exclusive. An inclusive host filter would take the next real sample.
             type.getMethod("setEndTime", long.class).invoke(option, end - 1);
             Object observer = observerConstructor.newInstance();
             boolean reportedSuccess = false;
@@ -1042,7 +1042,7 @@ public final class OHealthHealthImportHook {
             if (!(value instanceof List<?> rows)) throw new IllegalStateException("IMPORT_READ_PAYLOAD");
             return rows;
         }
-        /** Walk-mode read. A home-mode read uses the sportMode overload and does not change this one. */
+        /** Walk-mode read. A home-mode read uses the sportMode overload and leaves this method as it is. */
         List<?> readStepDays(Object api, String account, long start, long end) throws Exception {
             return readStepDays(api, account, start, end, OHealthStepWriter.MINUTE_MODE);
         }

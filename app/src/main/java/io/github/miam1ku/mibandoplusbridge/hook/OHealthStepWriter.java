@@ -218,7 +218,7 @@ final class OHealthStepWriter {
         return text.toString();
     }
 
-    /** Inserts minute growth. The half-hour and hour charts group these rows; an hour blob does not. */
+    /** Inserts minute growth. The half-hour and hour charts group these rows. An hour blob is a different table. */
     private int writeChart(Object api, String account, String device, BandHistoryParser.StepDay day,
             List<HealthRecord> records, SharedPreferences written) throws Exception {
         if (!prepareDetail()) return 0;
@@ -229,7 +229,7 @@ final class OHealthStepWriter {
             try {
                 host.deleteRows(api, TABLE_DETAIL, account, device, day.startMs, day.startMs + 86_400_000L);
             } catch (Exception deleteFailed) {
-                // A host delete that cannot be confirmed must not drop the day. The bars below are
+                // A host delete that cannot be confirmed leaves the day in place. The bars below are
                 // upserts, so overlapping minutes are replaced; a stale minute can outlive one pass.
                 HookRuntime.log("OHEALTH_STEP_CHART_DELETE_KEPT date=" + day.date
                         + " " + deleteFailed);

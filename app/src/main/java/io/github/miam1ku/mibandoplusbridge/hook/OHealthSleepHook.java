@@ -390,7 +390,7 @@ public final class OHealthSleepHook {
         if (view instanceof TextView) { ((TextView) view).setText(text); ((TextView) view).setVisibility(View.VISIBLE); }
     }
 
-    /** Lists source records independently; union length is never described as total sleep. */
+    /** Lists source records on their own. Total sleep is the counted minutes, not the union length. */
     public static String describe(List<HealthRecord> records) {
         return describe(records, false);
     }

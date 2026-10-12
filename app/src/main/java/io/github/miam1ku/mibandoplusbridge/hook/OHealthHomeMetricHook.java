@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.WeakHashMap;
 
-/** Asks home cards already on screen to read again. Does not rewrite their text. */
+/** Asks home cards already on screen to read again. The card text stays whatever the host draws. */
 public final class OHealthHomeMetricHook {
     private static final String HOST = "com.heytap.health";
     private static final String BASE = "com.heytap.health.main.card.common.HealthBaseCard";
@@ -78,7 +78,7 @@ public final class OHealthHomeMetricHook {
         }
     }
 
-    /** One main-thread pass. A second call while that pass is queued does not add another. */
+    /** One main-thread pass. A second call while that pass is queued waits for the same pass. */
     public static void requestReload() {
         synchronized (OHealthHomeMetricHook.class) {
             if (reloadPosted) return;

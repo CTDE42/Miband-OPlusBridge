@@ -99,8 +99,8 @@ public final class MyDevicesHook {
                 }
             });
         }
-        // A hot reload stops the old observer thread. The host does not register again, so resume
-        // with the observer it gave the previous generation.
+        // A hot reload stops the old observer thread. The host keeps the observer it already handed over,
+        // so this generation resumes with that same observer.
         HookRuntime.track(MyDevicesHook::unregister);
         Object carried = HookRuntime.carried(CARRIED_OBSERVER);
         if (observerType.isInstance(carried)) register(context, carried, removed, added, updated);

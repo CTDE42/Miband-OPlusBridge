@@ -413,7 +413,7 @@ message VibrationPatterns {
 message CustomVibrationPattern {
   optional uint32 id = 1;
   optional string name = 2;
-  // The band never populates the segments on a GET response, only on create/update (phone -> watch)
+  // The band fills the segments on create and update (phone to watch). A GET response leaves them empty.
   repeated Vibration vibration = 3;
   optional uint32 type = 4; // see VibrationType
 }
@@ -754,8 +754,8 @@ message AxisSensor {
   optional float z = 4;
 }
 
-// Field tags 5/6 are what Mi Band 10 emits on the wire — they do NOT match
-// AstroBox WearSensorData (accel/gyro = 1/2 there), so this stays a separate message.
+// Field tags 5/6 are what Mi Band 10 emits on the wire. AstroBox WearSensorData uses 1/2
+// for accel and gyro, so this stays a separate message.
 message RawSensorBatch {
   repeated AxisSensor accel = 5;
   repeated AxisSensor gyro = 6; // not consumed today

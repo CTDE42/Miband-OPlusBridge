@@ -16,7 +16,7 @@ import org.xmlpull.v1.XmlPullParser;
 /**
  * Ownership state lives in a json file under no_backup.
  *
- * <p>libxposed API 102 does not point {@link Context#getSharedPreferences} at
+ * <p>libxposed API 102 leaves {@link Context#getSharedPreferences} in the app data directory, not at
  * {@code /data/misc/apexdata}. Modules through 1.6.8 did, and the old OFFICIAL copy is still there.
  * An empty json file is imported once from {@code shared_prefs} in the app data directory.
  * {@code RawFitnessFileStore} still opens {@code oplusband-history} directly, because that step-metric
@@ -88,7 +88,7 @@ public final class LocalPrefs {
         return current.length() == 0;
     }
 
-    /** Present means a non-empty file is already on disk. A parse failure leaves that file in place, so open does not cover it with the old SharedPreferences. */
+    /** Present means a non-empty file is already on disk. A parse failure leaves that file in place, so open keeps it instead of the old SharedPreferences. */
     static final class Stored {
         final JSONObject json;
         final boolean present;

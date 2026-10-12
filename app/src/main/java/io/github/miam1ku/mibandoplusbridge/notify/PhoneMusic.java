@@ -19,7 +19,7 @@ import java.util.List;
 
 /**
  * Reads the phone's media session from this app's own notification listener.
- * OPPO Health only starts its watcher after its listener connects, which this ROM does not do.
+ * OPPO Health starts its watcher after its listener connects. This ROM leaves that listener disconnected.
  */
 public final class PhoneMusic {
     private static final String TAG = "OplusBandBridge";

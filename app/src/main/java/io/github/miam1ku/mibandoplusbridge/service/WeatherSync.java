@@ -94,7 +94,7 @@ public final class WeatherSync implements AutoCloseable {
                             response = null;
                         }
                         if (response == null || !"WEATHER_REQUESTED".equals(response.getString("status"))) {
-                            // A source failure does not invalidate a previously fresh snapshot.
+                            // A source failure leaves a previously fresh snapshot in place.
                             deliver(freshSnapshot(null));
                             return;
                         }
@@ -170,7 +170,7 @@ public final class WeatherSync implements AutoCloseable {
         queryCities(sample);
     }
 
-    /** A watch request always transmits. An idle poll does not repeat the same forecast. */
+    /** A watch request always transmits. An idle poll keeps the same forecast off the radio. */
     static boolean transmitForecast(boolean forced, BandWeatherEncoder.Sample lastSent,
                                     BandWeatherEncoder.Sample current) {
         return forced || lastSent == null || current == null || !lastSent.equals(current);

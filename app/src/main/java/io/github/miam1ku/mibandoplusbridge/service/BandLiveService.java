@@ -257,7 +257,7 @@ public final class BandLiveService extends Service {
         }
     }
 
-    /** Switch-on starts a new baseline. A sleep already underway does not pause. */
+    /** Switch-on starts a new baseline. A sleep already underway keeps playing. */
     public static void sleepPauseChanged(Context context) {
         BandLiveService live = instance;
         if (live == null || live.stopRequested) return;
@@ -1001,7 +1001,7 @@ public final class BandLiveService extends Service {
                 weatherSync.refreshAndSend();
             }
         }
-        // Bands that never answer 2/78 still publish sleep as a history file.
+        // Bands that leave 2/78 unanswered still publish sleep as a history file.
         if (sleepPauseOn && now >= nextSleepFileAt) {
             nextSleepFileAt = now + TimeUnit.MINUTES.toNanos(10);
             historySync.request(false);

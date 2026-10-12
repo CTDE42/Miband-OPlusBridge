@@ -13,8 +13,8 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 /**
- * Finds methods by a literal string in their dex code. Obfuscated class and method names move;
- * the log lines and action strings do not.
+ * Finds methods by a literal string in their dex code. Obfuscated class and method names move.
+ * The log lines and action strings stay put.
  */
 final class DexAnchors {
     record MethodRef(String classDescriptor, String name, String[] parameters) {}

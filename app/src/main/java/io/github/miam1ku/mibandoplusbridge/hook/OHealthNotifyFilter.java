@@ -4,7 +4,7 @@ package io.github.miam1ku.mibandoplusbridge.hook;
 import java.util.Locale;
 import java.util.Map;
 
-/** Decisions for OHealth notification forwarding that do not touch the host process. */
+/** Decisions for OHealth notification forwarding. The host process stays out of this class. */
 final class OHealthNotifyFilter {
     private OHealthNotifyFilter() {}
 

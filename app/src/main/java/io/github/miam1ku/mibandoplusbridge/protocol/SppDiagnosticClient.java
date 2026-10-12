@@ -35,7 +35,7 @@ import java.util.function.Consumer;
 import nodomain.freeyourgadget.gadgetbridge.proto.xiaomi.XiaomiProto;
 import org.json.JSONObject;
 
-/** One authenticated SPP session. Live mode stays open until closed; it never confirms an activity file before that file is stored. */
+/** One authenticated SPP session. Live mode stays open until closed. An activity file is confirmed after it is stored. */
 public final class SppDiagnosticClient implements AutoCloseable {
     private static final AtomicReference<SppDiagnosticClient> ACTIVE = new AtomicReference<>();
     private static volatile CountDownLatch activeCompletion;
@@ -431,7 +431,7 @@ public final class SppDiagnosticClient implements AutoCloseable {
     }
 
     /**
-     * m66nfc 1.8.124 does not drop a live BLE session for silence. The firmware logs
+     * m66nfc 1.8.124 keeps a live BLE session through silence. The firmware logs
      * an explicit "miwear app disconnect" packet, or a link supervision loss, which
      * surfaces here as BLE_DISCONNECTED. ios_keep_alive_adv only restarts advertising
      * while disconnected. A 30s read limit was tearing down every idle session.

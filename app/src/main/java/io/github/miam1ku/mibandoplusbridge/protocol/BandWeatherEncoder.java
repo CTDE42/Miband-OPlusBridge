@@ -201,7 +201,7 @@ public final class BandWeatherEncoder {
                 .setWeather(XiaomiProto.Weather.newBuilder().setLocations(copy)).build();
     }
 
-    /** Band 10 drops a forecast whose key is absent. 10/7 adds one city and does not replace the list. */
+    /** Band 10 drops a forecast whose key is absent. 10/7 adds one city and leaves the rest of the list. */
     public static XiaomiProto.Command addCurrentLocation(Sample sample) {
         validateForecast(sample);
         return XiaomiProto.Command.newBuilder().setType(10).setSubtype(7)

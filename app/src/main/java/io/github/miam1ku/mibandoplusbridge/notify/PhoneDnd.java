@@ -4,7 +4,7 @@ package io.github.miam1ku.mibandoplusbridge.notify;
 import android.app.NotificationManager;
 import android.content.Context;
 
-/** Phone Do Not Disturb. Values match NotificationManager interruption filters. */
+/** Phone DND. Values match NotificationManager interruption filters. */
 public final class PhoneDnd {
     public static final int UNKNOWN = 0;
     public static final int ALL = 1;
@@ -116,8 +116,8 @@ public final class PhoneDnd {
     public static int zenMode(boolean on) { return on ? 1 : 0; }
 
     /**
-     * A phone toggle may overwrite the band. A connect or a failed write must not
-     * push the phone's old state over a band that is already the other way.
+     * A phone toggle may overwrite the band. A connect or a failed write leaves a band
+     * that is already the other way on its own state.
      */
     public static boolean sendPhoneRule(boolean phoneChanged, boolean phoneOn,
             boolean bandKnown, boolean bandOn) {

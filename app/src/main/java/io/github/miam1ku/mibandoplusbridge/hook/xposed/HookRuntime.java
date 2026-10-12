@@ -180,7 +180,7 @@ public final class HookRuntime {
 
     /**
      * Host objects that the next generation needs to resume, such as a listener the host already
-     * registered. Values must come from the host or the platform, never from module classes.
+     * registered. The value is a host or platform object, so the next generation can still call it.
      */
     public static synchronized void carry(String key, Object hostValue) {
         if (hostValue == null) carried.remove(key);

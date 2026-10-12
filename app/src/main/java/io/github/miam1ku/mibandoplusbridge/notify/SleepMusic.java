@@ -42,7 +42,7 @@ public final class SleepMusic {
         return LocalPrefs.open(context, PREFS).getLong(ARMED_KEY, Long.MAX_VALUE);
     }
 
-    /** Move the cutoff forward. Nights that started before it do not pause after a restart. */
+    /** Move the cutoff forward. Nights that started before it stay playing after a restart. */
     public static boolean rememberCutoff(Context context, long cutoffMs) {
         if (!enabled(context) || cutoffMs <= 0 || cutoffMs == Long.MAX_VALUE) return false;
         long current = LocalPrefs.open(context, PREFS).getLong(ARMED_KEY, Long.MIN_VALUE);
@@ -83,7 +83,7 @@ public final class SleepMusic {
         return observe(asleep, Long.MAX_VALUE);
     }
 
-    /** @param nowMs when this baseline was read; a file from before it does not pause */
+    /** @param nowMs when this baseline was read; a file from before it stays playing */
     public synchronized Report observe(boolean asleep, long nowMs) {
         int next = asleep ? ASLEEP : AWAKE;
         if (phase == UNKNOWN) {

@@ -8,7 +8,7 @@ import java.util.regex.Pattern;
 
 /**
  * ColorOS posts one CATEGORY_CALL notification for dialing, ringing, and the connected call.
- * Telephony OFFHOOK does not split dialing from answered, and the call switch may be off:
+ * Telephony OFFHOOK covers both dialing and answered, and the call switch may be off:
  * the notification itself has to choose incoming, outgoing, or active.
  */
 public final class CallPresentation {

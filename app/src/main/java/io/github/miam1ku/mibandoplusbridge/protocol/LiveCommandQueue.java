@@ -29,7 +29,7 @@ import nodomain.freeyourgadget.gadgetbridge.proto.xiaomi.XiaomiProto;
  * responses have no transaction ID; requests for the same response type/subtype are serialized.
  * Unsolicited or arbitrarily late responses with that same pair are not distinguishable.
  *
- * <p>Only the owned worker calls Sender. ACK/command ingress never invokes consumer callbacks:
+ * <p>Only the owned worker calls Sender. ACK and command ingress hand consumer callbacks to the common pool:
  * completions use the common pool, so a callback may submit and await a file confirmation
  * without blocking the socket reader or writer. A separate deadline worker keeps expiration
  * observable even during a blocked write. Closing the transport itself remains the caller's job;
@@ -113,7 +113,7 @@ public final class LiveCommandQueue implements AutoCloseable {
 
     public long timeoutMillis() { return timeoutMillis; }
 
-    /** Completes after the matching transport ACK; this does not prove device-side rendering. */
+    /** Completes after the matching transport ACK. Device-side rendering is a later event. */
     public CompletionStage<Void> send(XiaomiProto.Command command) {
         return submit(command, -1, -1).thenApply(ignored -> null);
     }
