@@ -24,7 +24,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  */
 public final class OwnershipController {
     private static final String BRIDGE = "io.github.miam1ku.mibandoplusbridge";
-    private static final String OFFICIAL = HostIdentity.MI_PACKAGE;
     /** id, pm, and the startup-grant helper all return short text. */
     static final int MAX_COMMAND_OUTPUT = 4096;
     /**
@@ -70,38 +69,40 @@ public final class OwnershipController {
         GATE.writeLock().lock();
         try {
         requireUnlocked();
-        if (!HostIdentity.installed(context, HostIdentity.MI_PACKAGE)) throw new Failure("HOST_VERSION_UNSUPPORTED");
+        String official = HostIdentity.officialPackage(context);
+        if (official == null) throw new Failure("HOST_VERSION_UNSUPPORTED");
         requireRoot();
         if (state.getBoolean("ownsDisable", false)) {
             if (nativeReady()) return;
             throw new Failure("OWNERSHIP_RECOVERY_REQUIRED");
         }
-        int original = officialState();
+        int original = officialState(official);
         if (original != PackageManager.COMPONENT_ENABLED_STATE_DEFAULT
                 && original != PackageManager.COMPONENT_ENABLED_STATE_ENABLED) {
             throw new Failure("OFFICIAL_ALREADY_DISABLED");
         }
         if (!state.edit().putInt("originalEnabled", original).putBoolean("transitionPending", true)
-                .putBoolean("officialRestored", false).putString("mode", "OFFICIAL").commit()) {
+                .putBoolean("officialRestored", false).putString("mode", "OFFICIAL")
+                .putString("officialPackage", official).commit()) {
             throw new Failure("OWNERSHIP_STORAGE_FAILED");
         }
         try {
-            run("am force-stop com.mi.health", "OFFICIAL_STOP_FAILED");
-            run("pm disable-user --user 0 com.mi.health", "OFFICIAL_DISABLE_FAILED");
-            run("am force-stop com.mi.health", "OFFICIAL_STOP_FAILED");
-            if (officialState() != PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER) {
+            run("am force-stop " + official, "OFFICIAL_STOP_FAILED");
+            run("pm disable-user --user 0 " + official, "OFFICIAL_DISABLE_FAILED");
+            run("am force-stop " + official, "OFFICIAL_STOP_FAILED");
+            if (officialState(official) != PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER) {
                 throw new Failure("OFFICIAL_DISABLE_UNCONFIRMED");
             }
             ensureDoze();
             ensureStartupAllowed();
             if (!state.edit().putBoolean("ownsDisable", true).putBoolean("transitionPending", false)
                     .putString("mode", "NATIVE").commit()) throw new Failure("OWNERSHIP_STORAGE_FAILED");
-            if (officialState() != PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER) {
+            if (officialState(official) != PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER) {
                 throw new Failure("OFFICIAL_DISABLE_UNCONFIRMED");
             }
-            run("am force-stop com.mi.health", "OFFICIAL_STOP_FAILED");
+            run("am force-stop " + official, "OFFICIAL_STOP_FAILED");
         } catch (Failure error) {
-            if (!rollbackPending(original)) throw new Failure("OWNERSHIP_ROLLBACK_FAILED");
+            if (!rollbackPending(original, official)) throw new Failure("OWNERSHIP_ROLLBACK_FAILED");
             throw error;
         }
         } finally {
@@ -114,11 +115,12 @@ public final class OwnershipController {
         try {
         if (!state.getBoolean("ownsDisable", false) && !state.getBoolean("transitionPending", false)) return;
         requireRoot();
+        String official = state.getString("officialPackage", HostIdentity.MI_PACKAGE);
         int original = state.getInt("originalEnabled", -1);
         if (original != 0 && original != 1) throw new Failure("ORIGINAL_STATE_UNKNOWN");
         if (!state.getBoolean("officialRestored", false)) {
-            restorePackage(original);
-            if (officialState() != original) throw new Failure("OFFICIAL_RESTORE_UNCONFIRMED");
+            restorePackage(original, official);
+            if (officialState(official) != original) throw new Failure("OFFICIAL_RESTORE_UNCONFIRMED");
             if (!state.edit().putBoolean("officialRestored", true).commit()) {
                 throw new Failure("OWNERSHIP_STORAGE_FAILED");
             }
@@ -126,7 +128,7 @@ public final class OwnershipController {
         dropDoze();
         if (!state.edit().putString("mode", "OFFICIAL").putBoolean("ownsDisable", false)
                 .putBoolean("transitionPending", false).remove("originalEnabled")
-                .remove("officialRestored").remove("dozeAdded").commit()) {
+                .remove("officialRestored").remove("officialPackage").remove("dozeAdded").commit()) {
             throw new Failure("OWNERSHIP_STORAGE_FAILED");
         }
         } finally {
@@ -147,17 +149,17 @@ public final class OwnershipController {
     }
 
     /** Rollback returns the official package to the enabled state from before takeover. On failure Xiaomi Health stays disabled, and the caller shows that result. */
-    private boolean rollbackPending(int original) {
+    private boolean rollbackPending(int original, String official) {
         try {
-            restorePackage(original);
-            if (officialState() != original) {
-                SessionLog.line(context, "ownership rollback unconfirmed state=" + officialState());
+            restorePackage(original, official);
+            if (officialState(official) != original) {
+                SessionLog.line(context, "ownership rollback unconfirmed state=" + officialState(official));
                 return false;
             }
             dropDoze();
             if (!state.edit().putString("mode", "OFFICIAL").putBoolean("ownsDisable", false)
                     .putBoolean("transitionPending", false).remove("originalEnabled")
-                    .remove("officialRestored").remove("dozeAdded").commit()) {
+                    .remove("officialRestored").remove("officialPackage").remove("dozeAdded").commit()) {
                 SessionLog.line(context, "ownership rollback failed OWNERSHIP_STORAGE_FAILED");
                 return false;
             }
@@ -168,14 +170,14 @@ public final class OwnershipController {
         }
     }
 
-    private void restorePackage(int original) throws Failure {
-        if (original == 0) run("pm default-state --user 0 com.mi.health", "OFFICIAL_RESTORE_FAILED");
-        else if (original == 1) run("pm enable --user 0 com.mi.health", "OFFICIAL_RESTORE_FAILED");
+    private void restorePackage(int original, String official) throws Failure {
+        if (original == 0) run("pm default-state --user 0 " + official, "OFFICIAL_RESTORE_FAILED");
+        else if (original == 1) run("pm enable --user 0 " + official, "OFFICIAL_RESTORE_FAILED");
         else throw new Failure("ORIGINAL_STATE_UNKNOWN");
     }
 
-    private int officialState() throws Failure {
-        try { return context.getPackageManager().getApplicationEnabledSetting(OFFICIAL); }
+    private int officialState(String official) throws Failure {
+        try { return context.getPackageManager().getApplicationEnabledSetting(official); }
         catch (IllegalArgumentException absent) { throw new Failure("OFFICIAL_APP_MISSING"); }
     }
 

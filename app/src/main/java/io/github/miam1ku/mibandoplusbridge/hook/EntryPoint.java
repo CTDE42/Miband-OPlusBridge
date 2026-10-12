@@ -105,7 +105,7 @@ public final class EntryPoint extends XposedModule {
     }
 
     private static boolean handled(String pkg) {
-        return HostIdentity.MI_PACKAGE.equals(pkg) || HostIdentity.DEVICES_PACKAGE.equals(pkg)
+        return HostIdentity.isMiFitness(pkg) || HostIdentity.DEVICES_PACKAGE.equals(pkg)
                 || HEALTH_PACKAGE.equals(pkg) || CLOCK_PACKAGE.equals(pkg);
     }
 
@@ -115,7 +115,7 @@ public final class EntryPoint extends XposedModule {
      */
     private void dispatch(Target load) {
         String process = processName;
-        if (HostIdentity.MI_PACKAGE.equals(load.packageName)
+        if (HostIdentity.isMiFitness(load.packageName)
                 || HostIdentity.DEVICES_PACKAGE.equals(load.packageName)
                 || CLOCK_PACKAGE.equals(load.packageName)) {
             probe("PACKAGE_LOADED pkg=" + load.packageName + " process=" + process);
@@ -164,7 +164,7 @@ public final class EntryPoint extends XposedModule {
                 }
                 return;
             }
-            if (!HostIdentity.installed(context, HostIdentity.MI_PACKAGE)) {
+            if (!HostIdentity.isMiFitness(load.packageName)) {
                 probe("MI_PACKAGE_ABSENT");
                 return;
             }

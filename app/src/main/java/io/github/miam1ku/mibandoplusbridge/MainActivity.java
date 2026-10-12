@@ -219,7 +219,8 @@ public final class MainActivity extends AppCompatActivity {
         open.setEnabled(false);
         screen.outlined(advanced, "关闭所有导入／采集窗口", () -> action("closeWindow", null));
         screen.outlined(advanced, "打开小米运动健康", () -> {
-            Intent launch = getPackageManager().getLaunchIntentForPackage(HostIdentity.MI_PACKAGE);
+            String official = HostIdentity.officialPackage(this);
+            Intent launch = official == null ? null : getPackageManager().getLaunchIntentForPackage(official);
             if (launch == null) {
                 status.setText("无法打开小米运动健康。请检查应用是否已安装且启用。");
                 return;
@@ -852,13 +853,12 @@ public final class MainActivity extends AppCompatActivity {
             ownershipStatus.setText(text);
             if (launchHostAfterOpen) {
                 launchHostAfterOpen = false;
-                if (hostSupported) {
-                    Intent launch = getPackageManager().getLaunchIntentForPackage(HostIdentity.MI_PACKAGE);
-                    if (launch == null) {
-                        ownershipStatus.setText("无法打开小米运动健康。请检查应用是否已安装且启用。");
-                    } else {
-                        startActivity(launch);
-                    }
+                String official = HostIdentity.officialPackage(this);
+                Intent launch = official == null ? null : getPackageManager().getLaunchIntentForPackage(official);
+                if (launch == null) {
+                    ownershipStatus.setText("无法打开小米运动健康。请检查应用是否已安装且启用。");
+                } else {
+                    startActivity(launch);
                 }
             }
         }
