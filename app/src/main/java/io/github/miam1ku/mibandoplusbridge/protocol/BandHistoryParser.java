@@ -819,11 +819,14 @@ public final class BandHistoryParser {
         }
     }
 
-    /** The band's passive total is today's count. It never lowers a larger saved day. */
-    public static List<StepDay> preferLiveTotal(List<StepDay> days, long steps, long atMs) {
-        if (days == null) throw new IllegalArgumentException("INVALID_STEP_WINDOW");
+    /**
+     * 手环的被动总步数算 {@code zone} 里的今天，已保存的更大值留着。
+     * 时区由调用方传入。方法里取系统默认时区时，同一毫秒在 UTC 和上海会落到不同的日期。
+     */
+    public static List<StepDay> preferLiveTotal(List<StepDay> days, long steps, long atMs,
+            java.time.ZoneId zone) {
+        if (days == null || zone == null) throw new IllegalArgumentException("INVALID_STEP_WINDOW");
         if (steps < 0 || steps > 200_000L || atMs <= 0) return List.copyOf(days);
-        java.time.ZoneId zone = java.time.ZoneId.systemDefault();
         java.time.ZonedDateTime local = java.time.Instant.ofEpochMilli(atMs).atZone(zone);
         int numeric = local.getYear() * 10_000 + local.getMonthValue() * 100 + local.getDayOfMonth();
         long start = local.toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli();

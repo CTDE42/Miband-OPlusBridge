@@ -7,8 +7,13 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        tz: [Asia/Shanghai, UTC]
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
+      TZ: ${{ matrix.tz }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -24,6 +29,4 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" --install "platforms;android-36" "build-tools;35.0.0"
       - name: Unit tests
-        env:
-          TZ: Asia/Shanghai
         run: chmod +x ./gradlew && ./gradlew --no-daemon :app:testDebugUnitTest

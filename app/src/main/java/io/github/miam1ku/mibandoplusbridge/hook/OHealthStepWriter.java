@@ -85,7 +85,8 @@ final class OHealthStepWriter {
         String device = OHealthDeviceHook.healthId(queued);
         List<HealthRecord> records = history(context, account, queued);
         List<BandHistoryParser.StepDay> days = new ArrayList<>(BandHistoryParser.preferLiveTotal(
-                BandHistoryParser.stepDays(records), band.getLong("stepsToday", -1), band.getLong("stepsAtMs", 0)));
+                BandHistoryParser.stepDays(records), band.getLong("stepsToday", -1),
+                band.getLong("stepsAtMs", 0), java.time.ZoneId.systemDefault()));
         days.removeIf(day -> day.steps <= 0 && day.calories < 0 && day.moveAbout < 0 && day.distance < 0);
         if (days.isEmpty()) return;
         SharedPreferences written = context.getSharedPreferences("oplusband-step-import", Context.MODE_PRIVATE);

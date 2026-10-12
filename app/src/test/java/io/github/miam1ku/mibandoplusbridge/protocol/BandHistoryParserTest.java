@@ -173,12 +173,16 @@ public final class BandHistoryParserTest {
                 .toInstant().toEpochMilli();
         var saved = BandHistoryParser.stepDays(java.util.List.of(
                 stepRecord("steps_day", day, day + 86_400_000L, 20)));
-        var raised = BandHistoryParser.preferLiveTotal(saved, 30, day + 3_600_000);
-        var kept = BandHistoryParser.preferLiveTotal(saved, 10, day + 3_600_000);
+        var raised = BandHistoryParser.preferLiveTotal(saved, 30, day + 3_600_000, zone);
+        var kept = BandHistoryParser.preferLiveTotal(saved, 10, day + 3_600_000, zone);
         assertEquals(1, raised.size());
         assertEquals(1, kept.size());
         assertEquals(30, raised.get(0).steps);
         assertEquals(20, kept.get(0).steps);
+        var utc = BandHistoryParser.preferLiveTotal(saved, 30, day + 3_600_000, java.time.ZoneId.of("UTC"));
+        assertEquals(2, utc.size());
+        assertEquals(20260923, utc.get(1).date);
+        assertEquals(30, utc.get(1).steps);
     }
 
     @Test public void fragmentedFilesRetainMeasurementIdentityAcrossRevisions() throws Exception {
