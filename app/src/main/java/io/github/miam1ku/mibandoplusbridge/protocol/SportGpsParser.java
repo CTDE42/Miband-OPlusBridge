@@ -129,6 +129,54 @@ public final class SportGpsParser {
         return new Track(start, stop, kept.size(), payload(kept));
     }
 
+    /**
+     * Pace samples for the Health speed chart. The chart key is {@code pace},
+     * and each value is seconds per kilometre. A leading 2 is the field count.
+     */
+    public static String paceSeries(String gps) {
+        if (gps == null || !gps.startsWith("5,")) return null;
+        String[] part = gps.split(",");
+        int stride;
+        try {
+            stride = Integer.parseInt(part[0]);
+        } catch (NumberFormatException invalid) {
+            return null;
+        }
+        if (stride < 5 || (part.length - 1) % stride != 0) return null;
+        StringBuilder body = new StringBuilder("2,0,0");
+        int points = 0;
+        for (int i = 1 + stride; i + 4 < part.length; i += stride) {
+            double speed;
+            try {
+                speed = Double.parseDouble(part[i + 4]);
+            } catch (NumberFormatException invalid) {
+                continue;
+            }
+            if (speed < 0.3d || speed > 40d) continue;
+            int pace = (int) Math.round(1000.0d / speed);
+            if (pace < 30 || pace > 7200) continue;
+            body.append(',').append(part[i]).append(',').append(pace);
+            points++;
+        }
+        return points < 2 ? null : body.toString();
+    }
+
+    /** Fastest plausible pace in a {@link #paceSeries} string, or null. */
+    public static Integer fastestPace(String pace) {
+        if (pace == null || !pace.startsWith("2,")) return null;
+        String[] part = pace.split(",");
+        int best = Integer.MAX_VALUE;
+        for (int i = 4; i < part.length; i += 2) {
+            try {
+                int value = Integer.parseInt(part[i]);
+                if (value >= 30 && value < best) best = value;
+            } catch (NumberFormatException invalid) {
+                return null;
+            }
+        }
+        return best == Integer.MAX_VALUE ? null : best;
+    }
+
     /** OPPO band track: a leading 5 says each point is time, latitude, longitude, pause, speed. */
     public static String payload(List<double[]> points) {
         StringBuilder body = new StringBuilder("5,0,0,0,0,0");

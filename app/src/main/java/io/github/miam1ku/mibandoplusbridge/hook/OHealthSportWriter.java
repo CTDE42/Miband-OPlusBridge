@@ -10,6 +10,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import io.github.miam1ku.mibandoplusbridge.data.HealthRecord;
 import io.github.miam1ku.mibandoplusbridge.integration.HealthQueueProvider;
+import io.github.miam1ku.mibandoplusbridge.protocol.SportGpsParser;
 import io.github.miam1ku.mibandoplusbridge.protocol.SportReportParser;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
@@ -63,7 +64,7 @@ final class OHealthSportWriter {
         for (HealthRecord record : history(context, account, queued, "sport_session")) {
             HealthRecord track = match(record, tracks);
             String key = device + ":" + record.recordId;
-            String mark = record.revision + ":" + (track == null ? 0 : track.track.length()) + ":u3";
+            String mark = record.revision + ":" + (track == null ? 0 : track.track.length()) + ":u4";
             String saved;
             try {
                 saved = written.getString(key, "");
@@ -106,10 +107,13 @@ final class OHealthSportWriter {
         setSync.invoke(row, 0);
         setClient.invoke(row, record.recordId);
         if (record.timezone != null) setZone.invoke(row, record.timezone);
-        setMeta.invoke(row, metadata(record, mode, track != null));
+        String pace = track == null ? null : SportGpsParser.paceSeries(track.track);
+        setMeta.invoke(row, metadata(record, mode, track != null, pace));
         if (track != null) {
             setVersion.invoke(row, 2);
-            setData.invoke(row, new JSONObject().put("gps", track.track).toString());
+            JSONObject data = new JSONObject().put("gps", track.track);
+            if (pace != null) data.put("pace", pace);
+            setData.invoke(row, data.toString());
         }
         if (replace) {
             try {
@@ -128,7 +132,8 @@ final class OHealthSportWriter {
         return false;
     }
 
-    private static String metadata(HealthRecord record, int mode, boolean tracked) throws Exception {
+    private static String metadata(HealthRecord record, int mode, boolean tracked, String pace)
+            throws Exception {
         JSONObject json = new JSONObject();
         json.put("sportMode", mode);
         json.put("sportName", SportReportParser.name(mode));
@@ -141,10 +146,11 @@ final class OHealthSportWriter {
         if (record.reps != null) json.put("totalSteps", record.reps);
         if (record.heart != null) json.put("avgHeartRate", record.heart);
         if (record.distance != null && record.distance > 0) {
-            long pace = Math.round(seconds * 1000.0 / record.distance);
-            if (pace >= 30 && pace <= 7200) json.put("avgPace", pace);
+            long secondsPerKm = Math.round(seconds * 1000.0 / record.distance);
+            if (secondsPerKm >= 30 && secondsPerKm <= 7200) json.put("avgPace", secondsPerKm);
         }
-        if (record.bestPace != null) json.put("bestPace", record.bestPace);
+        Integer bestPace = record.bestPace != null ? record.bestPace : SportGpsParser.fastestPace(pace);
+        if (bestPace != null) json.put("bestPace", bestPace);
         if (tracked) json.put("hasTrackPoint", true);
         return json.toString();
     }

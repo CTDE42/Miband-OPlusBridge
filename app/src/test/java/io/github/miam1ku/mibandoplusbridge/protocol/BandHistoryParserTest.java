@@ -880,6 +880,11 @@ public final class BandHistoryParserTest {
             assertEquals("PARSED", track.parseStatus);
             assertEquals(1500, track.measurements.get(0).value.intValue());
             assertTrue(track.measurements.get(0).track.contains("28.699883"));
+            String pace = io.github.miam1ku.mibandoplusbridge.protocol.SportGpsParser
+                    .paceSeries(track.measurements.get(0).track);
+            assertTrue(pace != null && pace.startsWith("2,0,0,"));
+            int fastest = io.github.miam1ku.mibandoplusbridge.protocol.SportGpsParser.fastestPace(pace);
+            assertTrue(fastest >= 30 && fastest <= 400);
         }
     }
 
