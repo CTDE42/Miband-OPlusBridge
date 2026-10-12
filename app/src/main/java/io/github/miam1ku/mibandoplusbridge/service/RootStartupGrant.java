@@ -21,8 +21,10 @@ import java.util.List;
  * until the bridge is opened by hand. Without「自启动」, {@code MY_PACKAGE_REPLACED} and
  * {@code BOOT_COMPLETED} do not start the bridge either.</p>
  *
- * <p>Output: one line per package, {@code <pkg> auto=<bool> associate=<bool>}. Exit code 0 only
- * when every package ends up allowed in both lists.</p>
+ * <p>标准输出就是结果通道：这个类经 {@code app_process} 以 root 运行，调用方从进程输出读结果。
+ * 每个包一行 {@code <pkg> auto=<bool> associate=<bool>}，调用方最多读
+ * {@link OwnershipController#MAX_COMMAND_OUTPUT} 字节。一行只放这一条状态，结果才能完整回到桥接进程。
+ * 退出码 0 表示每个包的自启动和关联启动都已允许。</p>
  */
 public final class RootStartupGrant {
     static final String AUTHORITY = "com.oplus.startup.provider";

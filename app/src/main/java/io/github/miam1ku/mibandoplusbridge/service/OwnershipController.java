@@ -6,7 +6,9 @@ import io.github.miam1ku.mibandoplusbridge.data.LocalPrefs;
 import android.content.pm.PackageManager;
 import android.os.UserManager;
 import io.github.miam1ku.mibandoplusbridge.HostIdentity;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -15,6 +17,13 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public final class OwnershipController {
     private static final String BRIDGE = "io.github.miam1ku.mibandoplusbridge";
     private static final String OFFICIAL = HostIdentity.MI_PACKAGE;
+    /** id、pm、自启动授权这几条命令的输出都是短文本。 */
+    static final int MAX_COMMAND_OUTPUT = 4096;
+    /**
+     * {@code cmd deviceidle whitelist} 把系统包打在前面，一台机上可以有几百行。
+     * 读到这个上限仍有剩余字节时，名单视为不完整。
+     */
+    static final int MAX_WHITELIST_OUTPUT = 256 * 1024;
     private static final ReentrantReadWriteLock GATE = new ReentrantReadWriteLock(true);
     private final Context context;
     private final LocalPrefs state;
@@ -165,7 +174,9 @@ public final class OwnershipController {
     /** Doze whitelist plus background execution, so a swiped task does not freeze the bridge. */
     public void keepAwake() {
         if (!probeRoot()) return;
-        ensureDoze();
+        try {
+            ensureDoze();
+        } catch (Failure failed) { }
         String startup = ensureStartupAllowed();
         android.util.Log.i("OplusBandBridge", "STARTUP_GRANT "
                 + (startup == null ? "failed" : startup.replace('\n', ' ')));
@@ -199,13 +210,37 @@ public final class OwnershipController {
                 + RootStartupGrant.class.getName() + " " + BRIDGE + " com.heytap.health";
     }
 
-    private void ensureDoze() {
+    /**
+     * 省电白名单按逗号分隔后的整段包名匹配。一行是 {@code user,包名,uid} 或
+     * {@code system-excidle,包名,uid}，系统包排在前面。
+     * 以前只读 256 字节，桥接包名落在截断后面，{@code contains} 判成不在名单里，
+     * 于是每次都执行 {@code whitelist +} 并把 {@code dozeAdded} 写成 true。
+     * 恢复官方管理时 {@code whitelist -} 就会删掉用户自己加过的项。
+     * 读到上限还有剩余字节时命令失败，名单保持原样。
+     */
+    private void ensureDoze() throws Failure {
+        String list = execute("cmd deviceidle whitelist", 30, MAX_WHITELIST_OUTPUT);
+        if (whitelistContains(list, BRIDGE)) return;
+        execute("cmd deviceidle whitelist +" + BRIDGE);
+        if (state.edit().putBoolean("dozeAdded", true).commit()) return;
         try {
-            String list = execute("cmd deviceidle whitelist");
-            if (list.contains(BRIDGE)) return;
-            execute("cmd deviceidle whitelist +" + BRIDGE);
-            state.edit().putBoolean("dozeAdded", true).commit();
-        } catch (Failure ignored) { }
+            execute("cmd deviceidle whitelist -" + BRIDGE);
+        } catch (Failure removeFailed) {
+            // prefs 没写上，dozeAdded 仍是 false，之后的恢复不会再发 whitelist -。
+            // 这次移除是把刚刚加上的项撤回去的机会。
+        }
+        throw new Failure("OWNERSHIP_STORAGE_FAILED");
+    }
+
+    /** 包名必须占逗号或空白分隔出的一整段，避免命中更长的包名。 */
+    static boolean whitelistContains(String list, String packageName) {
+        if (list == null || packageName == null || packageName.isEmpty()) return false;
+        for (String line : list.split("\\R")) {
+            for (String token : line.split("[,\\s]+")) {
+                if (packageName.equals(token)) return true;
+            }
+        }
+        return false;
     }
 
     private void dropDoze() {
@@ -223,9 +258,12 @@ public final class OwnershipController {
         return "'" + command.replace("'", "'\\''") + "'";
     }
     private static String execute(String fixedCommand) throws Failure {
-        return execute(fixedCommand, 30);
+        return execute(fixedCommand, 30, MAX_COMMAND_OUTPUT);
     }
     private static String execute(String fixedCommand, int timeoutSeconds) throws Failure {
+        return execute(fixedCommand, timeoutSeconds, MAX_COMMAND_OUTPUT);
+    }
+    private static String execute(String fixedCommand, int timeoutSeconds, int maxOutput) throws Failure {
         Process process = null;
         try {
             process = new ProcessBuilder("su", "-c", "/system/bin/sh -c " + shellQuote(fixedCommand))
@@ -234,8 +272,7 @@ public final class OwnershipController {
                 process.destroyForcibly();
                 throw new Failure("ROOT_ACTION_TIMEOUT");
             }
-            byte[] output = process.getInputStream().readNBytes(256);
-            String text = new String(output, StandardCharsets.UTF_8).trim();
+            String text = readLimited(process.getInputStream(), maxOutput).trim();
             if (process.exitValue() != 0) throw new Failure("ROOT_ACTION_FAILED");
             return text;
         } catch (IOException | InterruptedException failure) {
@@ -244,6 +281,21 @@ public final class OwnershipController {
         } finally {
             if (process != null) process.destroy();
         }
+    }
+
+    /** 读到流结束。达到 maxOutput 后仍有字节时抛出，调用方把这次输出当成不完整。 */
+    static String readLimited(InputStream in, int maxOutput) throws IOException {
+        byte[] buf = new byte[Math.min(8192, Math.max(1, maxOutput))];
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        int total = 0;
+        while (total < maxOutput) {
+            int n = in.read(buf, 0, Math.min(buf.length, maxOutput - total));
+            if (n < 0) return out.toString(StandardCharsets.UTF_8);
+            out.write(buf, 0, n);
+            total += n;
+        }
+        if (in.read() >= 0) throw new IOException("OUTPUT_LIMIT");
+        return out.toString(StandardCharsets.UTF_8);
     }
 
     /** Fixed components only. Callers cannot pass a shell string. */
