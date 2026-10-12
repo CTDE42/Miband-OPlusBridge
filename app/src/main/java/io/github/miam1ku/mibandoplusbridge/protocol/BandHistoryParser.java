@@ -505,7 +505,7 @@ public final class BandHistoryParser {
         return new Measurement(recordId("sleep_stage", start) + ":sleep", deviceId, "sleep_stage",
                 start, end, null, stage, timezone, "sleep", false,
                 sourceFingerprint("sleep_stage", start, end, null, timezone, "sleep", false, stage),
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, null);
     }
 
 
@@ -529,8 +529,8 @@ public final class BandHistoryParser {
         return new Measurement(recordId(kind, start) + ":" + mode, deviceId, kind, start, end,
                 value, null, timezone, mode, complete,
                 sourceFingerprint(kind, start, end, value, timezone, mode, complete, null,
-                        calories, distance, moveAbout, null, null, null),
-                calories, distance, moveAbout, null, null, null);
+                        calories, distance, moveAbout, null, null, null, null),
+                calories, distance, moveAbout, null, null, null, null);
     }
 
     private Measurement sportMeasurement(byte[] bytes, String timezone) {
@@ -542,8 +542,8 @@ public final class BandHistoryParser {
                         track.startMs, track.endMs, track.points, null, timezone,
                         "continuous", false,
                         sourceFingerprint(kind, track.startMs, track.endMs, 1, timezone, "continuous",
-                                false, null, null, null, null, null, null, track.payload),
-                        null, null, null, null, null, track.payload);
+                                false, null, null, null, null, null, null, null, track.payload),
+                        null, null, null, null, null, null, track.payload);
             }
             SportReportParser.Session session = SportReportParser.parse(bytes);
             String kind = "sport_session";
@@ -551,8 +551,9 @@ public final class BandHistoryParser {
                     session.startMs, session.endMs, session.mode, null, timezone, "continuous", false,
                     sourceFingerprint(kind, session.startMs, session.endMs, session.mode, timezone,
                             "continuous", false, null, session.calories, session.distance, null,
-                            session.reps, session.heart, null),
-                    session.calories, session.distance, null, session.reps, session.heart, null);
+                            session.reps, session.heart, session.duration, null),
+                    session.calories, session.distance, null, session.reps, session.heart,
+                    session.duration, null);
         } catch (IllegalArgumentException failure) {
             String status = failure.getMessage();
             if (status != null && status.matches("[A-Z][A-Z0-9_]{0,80}")) throw new SemanticException(status);
@@ -607,18 +608,18 @@ public final class BandHistoryParser {
 
     private String sourceFingerprint(String kind, long start, long end, Number value,
             String timezone, String mode, boolean complete) {
-        return sourceFingerprint(kind, start, end, value, timezone, mode, complete, null, null, null, null, null, null, null);
+        return sourceFingerprint(kind, start, end, value, timezone, mode, complete, null, null, null, null, null, null, null, null);
     }
 
     private String sourceFingerprint(String kind, long start, long end, Number value,
             String timezone, String mode, boolean complete, Integer stage) {
-        return sourceFingerprint(kind, start, end, value, timezone, mode, complete, stage, null, null, null, null, null, null);
+        return sourceFingerprint(kind, start, end, value, timezone, mode, complete, stage, null, null, null, null, null, null, null);
     }
 
     private String sourceFingerprint(String kind, long start, long end, Number value,
             String timezone, String mode, boolean complete, Integer stage,
             Integer calories, Integer distance, Integer moveAbout, Integer reps, Integer heart,
-            String track) {
+            Integer duration, String track) {
         digest.reset();
         digest.update(identityBytes);
         digest.update((byte) 0);
@@ -641,9 +642,10 @@ public final class BandHistoryParser {
             updateLong(distance == null ? -1 : distance);
             updateLong(moveAbout == null ? -1 : moveAbout);
         }
-        if (reps != null || heart != null) {
+        if (reps != null || heart != null || duration != null) {
             updateLong(reps == null ? -1 : reps);
             updateLong(heart == null ? -1 : heart);
+            updateLong(duration == null ? -1 : duration);
         }
         if (track != null) updateAscii(track);
         return HexFormat.of().formatHex(digest.digest());
@@ -846,7 +848,7 @@ public final class BandHistoryParser {
     public static final class Measurement {
         private static final Set<String> FIELDS = Set.of("recordId", "deviceId", "kind", "startMs",
                 "endMs", "value", "stage", "timezone", "measurementMode", "complete", "sourceFingerprint",
-                "calories", "distance", "moveAbout", "reps", "heart", "track");
+                "calories", "distance", "moveAbout", "reps", "heart", "duration", "track");
 
         public final String recordId;
         public final String deviceId;
@@ -866,6 +868,8 @@ public final class BandHistoryParser {
         public final Integer reps;
         /** Average heart rate. Null when the summary did not carry one. */
         public final Integer heart;
+        /** Moving time in seconds. Null when the summary did not carry one. */
+        public final Integer duration;
         /** OPPO band track payload. Null except on a GPS file. */
         public final String track;
 
@@ -873,7 +877,7 @@ public final class BandHistoryParser {
                 long endMs, Number value, Integer stage, String timezone,
                 String measurementMode, boolean complete, String fingerprint,
                 Integer calories, Integer distance, Integer moveAbout, Integer reps, Integer heart,
-                String track) {
+                Integer duration, String track) {
             if (fingerprint == null || fingerprint.length() != 64) {
                 throw new IllegalArgumentException("INVALID_SOURCE_FINGERPRINT");
             }
@@ -899,13 +903,14 @@ public final class BandHistoryParser {
             this.moveAbout = moveAbout;
             this.reps = reps;
             this.heart = heart;
+            this.duration = duration;
             this.track = track;
         }
 
         public HealthRecord toRecord(int revision) {
             return new HealthRecord(recordId, deviceId, kind, startMs, endMs, value, stage,
                     revision, timezone, measurementMode, complete, calories, distance, moveAbout,
-                    reps, heart, track);
+                    reps, heart, duration, track);
         }
 
         public JSONObject toJson() {
@@ -927,6 +932,7 @@ public final class BandHistoryParser {
                 if (moveAbout != null) json.put("moveAbout", moveAbout);
                 if (reps != null) json.put("reps", reps);
                 if (heart != null) json.put("heart", heart);
+                if (duration != null) json.put("duration", duration);
                 if (track != null) json.put("track", track);
             } catch (JSONException e) {
                 throw new IllegalStateException("MEASUREMENT_SERIALIZATION_FAILED", e);
@@ -957,7 +963,7 @@ public final class BandHistoryParser {
                     json.getString("measurementMode"), json.getBoolean("complete"),
                     json.getString("sourceFingerprint"),
                     optional(json, "calories"), optional(json, "distance"), optional(json, "moveAbout"),
-                    optional(json, "reps"), optional(json, "heart"),
+                    optional(json, "reps"), optional(json, "heart"), optional(json, "duration"),
                     json.has("track") && !json.isNull("track") ? json.getString("track") : null);
             result.toRecord(1); // Apply the same measurement validity rules as persisted records.
             return result;

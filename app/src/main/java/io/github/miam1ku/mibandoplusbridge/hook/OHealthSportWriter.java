@@ -62,7 +62,7 @@ final class OHealthSportWriter {
         for (HealthRecord record : history(context, account, queued, "sport_session")) {
             HealthRecord track = match(record, tracks);
             String key = device + ":" + record.recordId;
-            String mark = record.revision + ":" + (track == null ? 0 : track.track.length());
+            String mark = record.revision + ":" + (track == null ? 0 : track.track.length()) + ":u2";
             String saved;
             try {
                 saved = written.getString(key, "");
@@ -131,8 +131,11 @@ final class OHealthSportWriter {
         JSONObject json = new JSONObject();
         json.put("sportMode", mode);
         json.put("sportName", SportReportParser.name(mode));
-        json.put("totalTime", Math.max(1, (record.endMs - record.startMs) / 1000));
-        if (record.calories != null) json.put("totalCalories", record.calories);
+        // OHealth multiplies seconds and kilocalories by 1000 before storing them.
+        long seconds = record.duration != null ? record.duration
+                : Math.max(1, (record.endMs - record.startMs) / 1000);
+        json.put("totalTime", seconds * 1000L);
+        if (record.calories != null) json.put("totalCalories", record.calories * 1000L);
         if (record.distance != null) json.put("totalDistance", record.distance);
         if (record.reps != null) json.put("totalSteps", record.reps);
         if (record.heart != null) json.put("avgHeartRate", record.heart);

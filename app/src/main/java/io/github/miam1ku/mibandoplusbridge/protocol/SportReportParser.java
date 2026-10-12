@@ -81,9 +81,11 @@ public final class SportReportParser {
         Integer jumps = narrow(values.get("totalJumps"));
         Integer heart = narrow(values.get("avgHeartRate"));
         if (heart != null && (heart < 1 || heart > 250)) heart = null;
+        Integer moving = narrow(duration);
+        if (moving != null && (moving < 1 || moving > 48 * 3600)) moving = null;
         Mapped mapped = map(activity, narrow(values.get("subSportType")));
         Integer reps = mapped.repsAreJumps ? jumps : steps;
-        return new Session(mapped.mode, mapped.name, start, end, calories, distance, reps, heart);
+        return new Session(mapped.mode, mapped.name, start, end, calories, distance, reps, heart, moving);
     }
 
     private static Integer first(Map<String, Long> values, String primary, String fallback) {
@@ -166,9 +168,11 @@ public final class SportReportParser {
         final Integer distance;
         final Integer reps;
         final Integer heart;
+        /** Moving time in seconds. Null when the summary did not carry one. */
+        final Integer duration;
 
         Session(int mode, String name, long startMs, long endMs, Integer calories, Integer distance,
-                Integer reps, Integer heart) {
+                Integer reps, Integer heart, Integer duration) {
             this.mode = mode;
             this.name = name;
             this.startMs = startMs;
@@ -177,6 +181,7 @@ public final class SportReportParser {
             this.distance = distance;
             this.reps = reps;
             this.heart = heart;
+            this.duration = duration;
         }
     }
 

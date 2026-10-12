@@ -12,7 +12,7 @@ import org.json.JSONObject;
 public final class HealthRecord {
     private static final Set<String> FIELDS = Set.of("recordId", "deviceId", "kind", "startMs",
             "endMs", "value", "stage", "revision", "timezone", "measurementMode", "complete",
-            "calories", "distance", "moveAbout", "reps", "heart", "track");
+            "calories", "distance", "moveAbout", "reps", "heart", "duration", "track");
     private static final Set<Integer> SPORT_MODES = Set.of(1, 2, 3, 7, 10, 19, 35, 36, 37, 506, 809, 908);
 
     public final String recordId;
@@ -36,6 +36,8 @@ public final class HealthRecord {
     public final Integer reps;
     /** Average heart rate from a sport summary. */
     public final Integer heart;
+    /** Moving time in seconds. Null when the summary did not carry one. */
+    public final Integer duration;
     /** OPPO band track payload. Null except on a GPS file. */
     public final String track;
 
@@ -43,7 +45,7 @@ public final class HealthRecord {
             Number value, Integer stage, int revision, String timezone,
             String measurementMode, boolean complete) {
         this(recordId, deviceId, kind, startMs, endMs, value, stage, revision, timezone,
-                measurementMode, complete, null, null, null, null, null);
+                measurementMode, complete, null, null, null, null, null, null, null);
     }
 
     public HealthRecord(String recordId, String deviceId, String kind, long startMs, long endMs,
@@ -51,7 +53,7 @@ public final class HealthRecord {
             String measurementMode, boolean complete, Integer calories, Integer distance,
             Integer moveAbout) {
         this(recordId, deviceId, kind, startMs, endMs, value, stage, revision, timezone,
-                measurementMode, complete, calories, distance, moveAbout, null, null, null);
+                measurementMode, complete, calories, distance, moveAbout, null, null, null, null);
     }
 
     public HealthRecord(String recordId, String deviceId, String kind, long startMs, long endMs,
@@ -59,13 +61,13 @@ public final class HealthRecord {
             String measurementMode, boolean complete, Integer calories, Integer distance,
             Integer moveAbout, Integer reps, Integer heart) {
         this(recordId, deviceId, kind, startMs, endMs, value, stage, revision, timezone,
-                measurementMode, complete, calories, distance, moveAbout, reps, heart, null);
+                measurementMode, complete, calories, distance, moveAbout, reps, heart, null, null);
     }
 
     public HealthRecord(String recordId, String deviceId, String kind, long startMs, long endMs,
             Number value, Integer stage, int revision, String timezone,
             String measurementMode, boolean complete, Integer calories, Integer distance,
-            Integer moveAbout, Integer reps, Integer heart, String track) {
+            Integer moveAbout, Integer reps, Integer heart, Integer duration, String track) {
         if (recordId == null || recordId.isBlank() || deviceId == null || deviceId.isBlank()
                 || startMs < 0 || endMs <= startMs || revision <= 0) {
             throw new IllegalArgumentException("INVALID_HEALTH_RECORD");
@@ -93,7 +95,8 @@ public final class HealthRecord {
                 || sleepBreath && !"sleep".equals(measurementMode)
                 || complete && !sleepInterval
                 || (calories != null || distance != null || moveAbout != null) && !steps && !sport
-                || (reps != null || heart != null) && !sport
+                || (reps != null || heart != null || duration != null) && !sport
+                || duration != null && (duration < 1 || duration > 48 * 3600)
                 || track != null && !trackFile
                 || trackFile && (track == null || !track.startsWith("5,") || track.length() > 200_000)
                 || calories != null && (calories < 0 || calories > 100_000)
@@ -156,6 +159,7 @@ public final class HealthRecord {
         this.moveAbout = moveAbout;
         this.reps = reps;
         this.heart = heart;
+        this.duration = duration;
         this.track = track;
     }
     /** OHealth 6.9.37 drops these values and still reports insert success. */
@@ -190,6 +194,7 @@ public final class HealthRecord {
             if (moveAbout != null) json.put("moveAbout", moveAbout);
             if (reps != null) json.put("reps", reps);
             if (heart != null) json.put("heart", heart);
+            if (duration != null) json.put("duration", duration);
             if (track != null) json.put("track", track);
         } catch (JSONException e) {
             throw new IllegalStateException("HEALTH_RECORD_SERIALIZATION_FAILED", e);
@@ -219,7 +224,7 @@ public final class HealthRecord {
                 json.has("timezone") ? json.getString("timezone") : null,
                 json.getString("measurementMode"), json.getBoolean("complete"),
                 optional(json, "calories"), optional(json, "distance"), optional(json, "moveAbout"),
-                optional(json, "reps"), optional(json, "heart"),
+                optional(json, "reps"), optional(json, "heart"), optional(json, "duration"),
                 json.has("track") && !json.isNull("track") ? json.getString("track") : null);
     }
 

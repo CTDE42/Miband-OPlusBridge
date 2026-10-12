@@ -91,7 +91,8 @@ public final class SportGpsParser {
         if (cursor > end) throw unsupported("UNSUPPORTED_SPORT_FILE");
         boolean time = flag(bytes, 0);
         if (!flag(bytes, 1) || !flag(bytes, 2)) throw unsupported("UNSUPPORTED_SPORT_FILE");
-        int stride = (time ? 4 : 0) + 8 + (flag(bytes, 3) ? speedBytes : 0) + (flag(bytes, 4) ? tailBytes : 0);
+        boolean speed = flag(bytes, 3);
+        int stride = (time ? 4 : 0) + 8 + (speed ? speedBytes : 0) + (flag(bytes, 4) ? tailBytes : 0);
         long headerMs = Integer.toUnsignedLong(leInt(bytes, 0)) * 1000L;
         List<double[]> points = new ArrayList<>();
         long first = 0;
@@ -106,6 +107,12 @@ public final class SportGpsParser {
             float lon = leFloat(bytes, at);
             at += 4;
             float lat = leFloat(bytes, at);
+            at += 4;
+            double metersPerSecond = 0;
+            if (speed && speedBytes == 4) {
+                float kmh = leFloat(bytes, at);
+                if (Float.isFinite(kmh) && kmh > 0f && kmh < 200f) metersPerSecond = kmh / 3.6d;
+            }
             cursor += stride;
             if (!Float.isFinite(lat) || !Float.isFinite(lon) || lat < -90f || lat > 90f || lon < -180f || lon > 180f) {
                 continue;
@@ -113,7 +120,7 @@ public final class SportGpsParser {
             if (lat == 0 && lon == 0) continue;
             if (points.isEmpty()) first = pointMs;
             last = pointMs;
-            points.add(new double[] {lat, lon, pointMs});
+            points.add(new double[] {lat, lon, pointMs, metersPerSecond});
         }
         if (points.size() < 2) throw unsupported("UNSUPPORTED_SPORT_FILE");
         long start = headerMs > 0 ? headerMs : first;
@@ -130,7 +137,8 @@ public final class SportGpsParser {
                     .append((long) point[2]).append(',')
                     .append(String.format(Locale.US, "%.6f", point[0])).append(',')
                     .append(String.format(Locale.US, "%.6f", point[1]))
-                    .append(",0,0");
+                    .append(",0,")
+                    .append(String.format(Locale.US, "%.2f", point.length > 3 ? point[3] : 0));
         }
         return body.toString();
     }
