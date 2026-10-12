@@ -383,7 +383,7 @@ final class BleGattClient implements AutoCloseable {
         UUID uuid = characteristic.getUuid();
         try {
             if (writeUuid.equals(uuid)) {
-                transportAcks.offer(value);
+                if (!transportAcks.offer(value)) overflow();
                 return;
             }
             boolean activityChar = activityUuid.equals(uuid);
@@ -397,7 +397,8 @@ final class BleGattClient implements AutoCloseable {
                         ? BleV1Codec.PAYLOAD_ACK : BleV1Codec.CHUNK_END_ACK);
                 SessionLog.line(context, "rx ble bytes=" + payload.length
                         + (activityChar ? " activity" : ""));
-                incoming.offer(new Rx(payload, activityChar));
+                // ACK 已经回给手环。队列放不下时这包到不了上层，会话停下来，避免按缺了一段的数据继续。
+                if (!incoming.offer(new Rx(payload, activityChar))) overflow();
             }
         } catch (IllegalArgumentException ignored) {
             fail("BLE_FRAME_INVALID");
@@ -458,6 +459,11 @@ final class BleGattClient implements AutoCloseable {
             this.activity = activity;
         }
     }
+    private void overflow() {
+        SessionLog.line(context, "ble rx overflow");
+        fail("BLE_RX_OVERFLOW");
+    }
+
     private void fail(String code) {
         if (!failure.compareAndSet(null, code)) return;
         ready.countDown();
