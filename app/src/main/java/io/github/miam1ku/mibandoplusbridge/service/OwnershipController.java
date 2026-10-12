@@ -14,7 +14,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-/** Fixed-package, reversible connection ownership. Never accepts caller-supplied shell text. */
+/**
+ * 连接所有权只操作固定包名，并且可以退回官方管理。shell 命令在这个类里拼好。
+ *
+ * <p>{@link #beginNativeSession()} 在整段 SPP 会话期间持有 {@code GATE} 的读锁。
+ * 持有读锁时再调 {@link #takeOver()} 会等写锁，写锁又要等这条读锁，于是死锁。
+ * 会话进行中要改所有权，先 {@link #endNativeSession()}。</p>
+ */
 public final class OwnershipController {
     private static final String BRIDGE = "io.github.miam1ku.mibandoplusbridge";
     private static final String OFFICIAL = HostIdentity.MI_PACKAGE;
@@ -50,7 +56,7 @@ public final class OwnershipController {
                 && context.getSystemService(UserManager.class).isUserUnlocked();
     }
 
-    /** True only after the user has allowed this app in KernelSU. No grant dialog is shown. */
+    /** 用户在 KernelSU 里允许这个应用之后，{@code id -u} 才是 0。KernelSU 没有授权弹窗，这里只探测。 */
     public boolean probeRoot() {
         try {
             return "0".equals(execute("id -u", 8));

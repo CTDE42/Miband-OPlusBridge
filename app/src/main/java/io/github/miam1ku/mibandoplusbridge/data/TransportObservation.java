@@ -4,7 +4,7 @@ package io.github.miam1ku.mibandoplusbridge.data;
 import android.content.Context;
 import org.json.JSONObject;
 
-/** Last verified SPP profile. Survives LSPosed preference redirect and diagnostic recapture. */
+/** 最近一次核对过的传输参数，SPP 或 GATT。放在 no_backup，躲开偏好重定向，诊断重采时可以盖掉。 */
 public final class TransportObservation {
     public static final int APP_CAPABILITY = 25_171_686;
     /** Mi Fitness CAPABILITY_SUPPORT_ZEN_RULE_SYNC. The band hides 同步手机勿扰 without this bit. */

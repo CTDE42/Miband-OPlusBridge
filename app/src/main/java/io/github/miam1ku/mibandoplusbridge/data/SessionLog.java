@@ -82,7 +82,7 @@ public final class SessionLog {
         return out;
     }
 
-    /** Drops every module start except the newest {@code keep}. A single oversized start is tail-trimmed. */
+    /** 只留下最新的 {@code keep} 次模块启动。单次启动仍然超长时，从末尾截一段。 */
     static String retain(String text) {
         String kept = keepLastStarts(text, KEPT_STARTS);
         byte[] raw = kept.getBytes(StandardCharsets.UTF_8);

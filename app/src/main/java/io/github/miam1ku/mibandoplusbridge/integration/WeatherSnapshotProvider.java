@@ -15,7 +15,7 @@ import io.github.miam1ku.mibandoplusbridge.HostIdentity;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-/** A signed OHealth-only weather handoff; location data never enters public device cards. */
+/** 天气交给健康的交接口。调用方按包名核对。位置留在这个 provider 里，设备空间卡片拿不到。 */
 public final class WeatherSnapshotProvider extends ContentProvider {
     public static final Uri URI = Uri.parse("content://io.github.miam1ku.mibandoplusbridge.weather/request");
     public static final Uri UPDATED = Uri.parse("content://io.github.miam1ku.mibandoplusbridge.weather/snapshot");

@@ -34,7 +34,10 @@ import java.util.TreeSet;
 import java.util.WeakHashMap;
 import org.json.JSONObject;
 
-/** Selected-device sleep is written into OHealth. This hook only restores a projection left by an older build. */
+/**
+ * 选中这只手环时，把睡眠首页和日视图拉回桥接写入的数据。
+ * 历史页的标题栏副标题会说明手环区间没有计入周/月统计，历史范围用桥接保存的起止时间。
+ */
 public final class OHealthSleepHook {
     private static final String HOST = "com.heytap.health";
     private static final String CARD = "com.heytap.health.main.card.SleepCard";

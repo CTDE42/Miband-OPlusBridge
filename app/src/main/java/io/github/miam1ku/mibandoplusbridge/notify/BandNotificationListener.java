@@ -26,7 +26,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 
-/** Android adapter: metadata gates precede any extras/body access. */
+/**
+ * 系统通知监听。准入先看包名和可见性。
+ * {@code healthBlock} 会读标题和正文，所以健康策略这一步发生在读取 extras 的同时。
+ */
 public final class BandNotificationListener extends NotificationListenerService {
     public static final String SETTINGS = "notification-settings";
     private static volatile BandNotificationListener instance;
@@ -334,7 +337,7 @@ public final class BandNotificationListener extends NotificationListenerService 
 
     @Override public void onNotificationRankingUpdate(RankingMap rankings) {
         if (!notificationsAllowed()) { relay.disconnected(); BandLiveService.cancelNotifications(this); return; }
-        // Ranking changes can only withdraw existing delivery, never replay an active baseline.
+        // 排序变低时只撤回已经送出的那条。正在显示的基线保持原样。
         for (String key : rankings.getOrderedKeys()) {
             Ranking ranking = new Ranking();
             if (rankings.getRanking(key, ranking) && ranking.getImportance() <= NotificationManager.IMPORTANCE_LOW) {
@@ -344,7 +347,7 @@ public final class BandNotificationListener extends NotificationListenerService 
         }
     }
 
-    /** Called only for a currently ringing SIM; never reads contacts, numbers or notification bodies. */
+    /** 只给正在响铃的本机来电取标题。号码在 {@link #currentIncomingCallNumber}，而且要有发短信权限。 */
     public static String currentIncomingCallTitle(Context context) {
         BandNotificationListener current = instance;
         if (current == null || !current.sessionAllowed()

@@ -14,9 +14,12 @@ import org.json.JSONObject;
 import org.xmlpull.v1.XmlPullParser;
 
 /**
- * App state that must survive LSPosed's module-preference redirect.
- * {@link Context#getSharedPreferences} in this package is pointed at
- * {@code /data/misc/apexdata/.../prefs/}, which keeps a stale OFFICIAL copy.
+ * 接管状态写在 no_backup 的 json 里。
+ *
+ * <p>libxposed API 102 不再把 {@link Context#getSharedPreferences} 指到
+ * {@code /data/misc/apexdata}。1.6.8 及更早的模块会，旧的 OFFICIAL 副本还在那个目录。
+ * 这份 json 还没有内容时，从应用数据目录的 {@code shared_prefs} 导入一次。
+ * {@code RawFitnessFileStore} 仍直接打开 {@code oplusband-history}，那份步数标记已经写在用户的 SharedPreferences 里。</p>
  */
 public final class LocalPrefs {
     private final File file;

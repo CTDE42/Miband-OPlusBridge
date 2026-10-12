@@ -28,7 +28,7 @@ public final class HostIdentity {
         }
     }
 
-    /** True when this UID owns {@code packageName}. A shared UID may list more than one package. */
+    /** 这个 UID 拥有 {@code packageName}。共享 UID 下面可以挂多个包。 */
     public static boolean uidHas(Context context, int uid, String packageName) {
         if (context == null || packageName == null) return false;
         String[] packages = context.getPackageManager().getPackagesForUid(uid);

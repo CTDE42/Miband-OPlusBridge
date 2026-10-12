@@ -204,12 +204,12 @@ public final class LiveCommandQueue implements AutoCloseable {
         }
     }
 
-    /** Cancels only unsent ordinary posts/dismissals, for access revocation or relay shutdown. */
+    /** 调用方用这个异常标明取消原因。范围是还没发出的普通通知。 */
     public void cancelNotifications(Throwable cause) {
         cancelUnsent(false);
     }
 
-    /** Cancels only unsent phone state, for phone permission/feature revocation. */
+    /** 调用方用这个异常标明取消原因。范围是还没发出的通话状态。 */
     public void cancelCall(Throwable cause) {
         cancelUnsent(true);
     }

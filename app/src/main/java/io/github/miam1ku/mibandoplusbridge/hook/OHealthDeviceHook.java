@@ -153,7 +153,10 @@ public final class OHealthDeviceHook {
         }
     }
 
-    /** UI hooks only read this immutable, process-local IPC snapshot. */
+    /**
+     * 界面读的是进程内的快照引用。{@code Bundle} 还能被改，{@link #liveSnapshot()} 也会换掉它。
+     * 要拿一份稳定副本时用 {@link #registeredSnapshot()}。
+     */
     private static Bundle display() {
         Bundle shown = snapshot;
         return shown != null && shown.getBoolean("registered", false) ? shown : null;
@@ -1069,7 +1072,7 @@ public final class OHealthDeviceHook {
         }
     }
 
-    /** Health's device-space id is the MD5 of the MAC text, uppercase colons included. */
+    /** 设备空间的卡片 id 是 MAC 文本的 MD5。这里按传入字符串原样哈希，调用方先收成大写、带冒号的形式。 */
     private static String healthCardId(String mac) {
         try {
             byte[] digest = java.security.MessageDigest.getInstance("MD5")
@@ -1325,7 +1328,11 @@ public final class OHealthDeviceHook {
         }
     }
 
-    /** Health already decided. Translate in this process and send through the bridge provider. */
+    /**
+     * 把健康里的通知译成本地命令，经桥接 provider 送出手环。
+     * 注册中心 {@code onNotificationPosted} 之后调用时，健康已经决定放行。
+     * 事件管理器 {@code onNotificationPosted} 之前也会调用，那时健康自己的过滤还没跑，随后这次投递被拦住。
+     */
     private static void forwardHostNotification(Object bean, boolean removed) {
         String process = android.app.Application.getProcessName();
         Bundle shown = liveSnapshot();
@@ -1554,7 +1561,10 @@ public final class OHealthDeviceHook {
             return false;
         }
     }
-    /** Null means the health allowlist permits this package. Room is not queried on the main thread. */
+    /**
+     * 返回 null 表示按健康白名单放行。查询超时、线程被中断，以及多数异常也返回 null，失败时同样放行。
+     * Room 查询放到 {@code ALLOWLIST} 上，主线程在这里等结果。
+     */
     private static String readAllowBlock(Object bean) {
         if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) return allowBlock(bean);
         java.util.concurrent.atomic.AtomicReference<String> result = new java.util.concurrent.atomic.AtomicReference<>();

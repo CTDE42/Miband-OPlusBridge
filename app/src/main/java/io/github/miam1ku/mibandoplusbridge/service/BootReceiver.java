@@ -9,7 +9,7 @@ import android.util.Log;
 import io.github.miam1ku.mibandoplusbridge.data.BandStateRepository;
 import io.github.miam1ku.mibandoplusbridge.protocol.SppDiagnosticClient;
 
-/** After unlock, resume the live link while this module owns the band. */
+/** 开机完成、用户解锁或本包被替换之后，模块仍拥有手环时把实时连接拉起来。用户还锁着就先返回。 */
 public final class BootReceiver extends BroadcastReceiver {
     @Override public void onReceive(Context context, Intent intent) {
         String action = intent.getAction();
