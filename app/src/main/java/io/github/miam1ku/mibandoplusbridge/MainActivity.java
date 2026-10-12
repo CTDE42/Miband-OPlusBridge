@@ -89,7 +89,12 @@ public final class MainActivity extends AppCompatActivity {
     private boolean probingRoot;
     private Change pendingPermission;
     private static final String SETUP_PREREQ = "开始前：系统蓝牙配对；LSPosed 启用本模块并勾选小米运动健康、OHealth、我的设备后强停一次；在 KernelSU 中允许本应用。";
-    private enum Change { ADD, RECONNECT, REMOVE, RESTORE }
+    enum Change { ADD, RECONNECT, REMOVE, RESTORE }
+
+    /** 采集窗口跟着恢复结果走：这次任务把官方管理恢复成功，用户才是从采集入口进来的。 */
+    static boolean openProfileAfterRestore(Change change, boolean restored) {
+        return restored && change == Change.RESTORE;
+    }
     private final ContentObserver deviceObserver = new ContentObserver(main) {
         @Override public void onChange(boolean selfChange) { refreshDevice(); }
     };
@@ -428,6 +433,7 @@ public final class MainActivity extends AppCompatActivity {
             String message;
             boolean registrationSaved = false;
             boolean removalSaved = false;
+            boolean officialRestored = false;
             try {
                 if (change == Change.ADD || change == Change.RECONNECT) {
                     if (!isUnlocked()) throw new IllegalStateException("USER_LOCKED");
@@ -457,6 +463,7 @@ public final class MainActivity extends AppCompatActivity {
                     }
                     repository.disconnected();
                     owner.restoreOfficial();
+                    officialRestored = change == Change.RESTORE;
                     message = change == Change.REMOVE
                             ? "已移除并恢复官方管理。绑定和健康历史已保留。"
                             : "已恢复官方管理。绑定和健康历史已保留。";
@@ -473,14 +480,14 @@ public final class MainActivity extends AppCompatActivity {
                 }
             }
             String visible = message;
+            boolean followProfile = openProfileAfterRestore(change, officialRestored);
             main.post(() -> {
                 if (isDestroyed()) return;
                 changingOwnership = false;
                 ownershipStatus.setText(visible);
                 updateControls();
                 refreshDevice();
-                if (profileAfterRestore && change == Change.RESTORE
-                        && visible.startsWith("已恢复官方管理")) {
+                if (profileAfterRestore && followProfile) {
                     profileAfterRestore = false;
                     startProfileWindow();
                 }
