@@ -88,6 +88,8 @@ public final class DeviceCardProvider extends ContentProvider {
         result.setNotificationUri(getContext().getContentResolver(), URI);
         var state = state();
         if (!state.getBoolean("registered", false)) return result;
+        // 健康已经把这只手环放进设备空间时，不再给桥接另出一张。
+        if (spaceYielded()) return result;
         String deviceId = state.getString("deviceId", "");
         if (deviceId == null || deviceId.isBlank()) return result;
         String mac = state.getString("mac", "");
@@ -165,6 +167,15 @@ public final class DeviceCardProvider extends ContentProvider {
         return data;
     }
 
+    private boolean spaceYielded() {
+        try {
+            return io.github.miam1ku.mibandoplusbridge.data.LocalPrefs.open(getContext(), "space-card")
+                    .getBoolean("yield", false);
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
     private static String spaceIcon(io.github.miam1ku.mibandoplusbridge.data.LocalPrefs state) {
         return "android.resource://com.heytap.mydevices/drawable/"
                 + BandCatalog.spaceIcon(state.getString("modelId", ""));
@@ -200,6 +211,20 @@ public final class DeviceCardProvider extends ContentProvider {
                 // Service admission checks registration/ownership without root or Bluetooth work here.
                 result.putString("status", BandLiveService.requestSync(getContext()));
                 return result;
+            } finally {
+                Binder.restoreCallingIdentity(identity);
+            }
+        }
+        if ("spaceYield".equals(method)) {
+            requireSyncCaller();
+            boolean yield = extras != null && extras.getBoolean("yield");
+            long identity = Binder.clearCallingIdentity();
+            try {
+                var space = io.github.miam1ku.mibandoplusbridge.data.LocalPrefs.open(getContext(), "space-card");
+                if (space.getBoolean("yield", false) == yield) return Bundle.EMPTY;
+                space.edit().putBoolean("yield", yield).commit();
+                getContext().getContentResolver().notifyChange(URI, null);
+                return Bundle.EMPTY;
             } finally {
                 Binder.restoreCallingIdentity(identity);
             }

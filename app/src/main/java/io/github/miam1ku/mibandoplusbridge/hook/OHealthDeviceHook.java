@@ -813,11 +813,8 @@ public final class OHealthDeviceHook {
                         @Override protected void afterHookedMethod(MethodHookParam param) {
                             if (param.args.length == 0) return;
                             Bundle shown = liveSnapshot();
-                            if (shown == null) return;
-                            if (!shown.getString("deviceId", "").equals(String.valueOf(param.args[0]))
-                                    && !String.valueOf(param.args[0]).startsWith("miband11_")) return;
                             Object info = param.getResult();
-                            if (info == null) return;
+                            if (shown == null || info == null || !duplicateSpaceCard(info)) return;
                             patchSdkDevice(info, shown);
                         }
                     });
@@ -947,8 +944,8 @@ public final class OHealthDeviceHook {
     }
 
     /**
-     * Health writes this band into device space as its own card (MAC 的 MD5，类型是手环，但是断开的)。
-     * The bridge already publishes the live card, so the same band shows twice.
+     * Health already puts this band in device space. Keep that card (it uses OPPO's own glyph)
+     * and copy the live connection onto it. The bridge card stays hidden while this row exists.
      */
     private static void guardDuplicateSpaceCard(ClassLoader loader) {
         Class<?> infoType;
@@ -958,11 +955,11 @@ public final class OHealthDeviceHook {
             Log.i("OplusBandBridge", "DEVICE_SPACE_GUARD_UNAVAILABLE");
             return;
         }
-        XC_MethodHook block = new XC_MethodHook() {
+        XC_MethodHook patch = new XC_MethodHook() {
             @Override protected void beforeHookedMethod(MethodHookParam param) {
                 if (param.args.length == 0 || !duplicateSpaceCard(param.args[0])) return;
-                Class<?> returned = ((java.lang.reflect.Method) param.method).getReturnType();
-                param.setResult(returned == boolean.class ? Boolean.FALSE : null);
+                Bundle shown = liveSnapshot();
+                if (shown != null) patchSdkDevice(param.args[0], shown);
             }
         };
         int hooked = 0;
@@ -980,44 +977,78 @@ public final class OHealthDeviceHook {
                 if (!name.equals("add") && !name.equals("update") && !name.equals("insertOrUpdate")
                         && !name.equals("insertOrUpdateOnly") && !name.equals("insertOrUpdateDevice")) continue;
                 if (method.getParameterCount() < 1 || !infoType.isAssignableFrom(method.getParameterTypes()[0])) continue;
-                XposedBridge.hookMethod(method, block);
+                XposedBridge.hookMethod(method, patch);
                 hooked++;
             }
         }
         try {
             XposedHelpers.findAndHookMethod(
                     "com.heytap.health.linkage.watch.WatchController", loader,
-                    "updateDeviceState", infoType, boolean.class, block);
+                    "updateDeviceState", infoType, boolean.class, patch);
             hooked++;
         } catch (Throwable ignored) { }
         Log.i("OplusBandBridge", hooked == 0 ? "DEVICE_SPACE_GUARD_UNAVAILABLE" : "DEVICE_SPACE_GUARD " + hooked);
     }
 
-    private static volatile String droppedMac;
+    private static volatile Boolean yielded;
+    private static int pushedBattery = Integer.MIN_VALUE;
+    private static boolean pushedConnected;
 
+    /** Hide the bridge card only while health's own device-space row is still there. */
     private static void dropDuplicateSpaceCard(ClassLoader loader) {
         Bundle shown = snapshot;
-        if (shown == null || !shown.getBoolean("registered", false) || hostContext == null) return;
+        if (shown == null || hostContext == null) return;
+        boolean registered = shown.getBoolean("registered", false);
         String mac = shown.getString("mac", "");
-        if (mac.isBlank() || mac.equalsIgnoreCase(droppedMac)) return;
-        String id = healthCardId(mac);
-        if (id.isEmpty()) return;
+        boolean present = registered && !mac.isBlank() && healthCardPresent(mac);
+        if (present) refreshHealthCard(loader, mac, shown);
+        else {
+            pushedBattery = Integer.MIN_VALUE;
+        }
+        if (yielded != null && yielded == present) return;
         try {
-            android.net.Uri uri = android.net.Uri.parse(
-                    "content://com.heytap.health.WatchProvider/device_info_table_new");
-            int rows = hostContext.getContentResolver().delete(uri, "device_id=?", new String[] {id});
-            try {
-                Class<?> managerType = XposedHelpers.findClass(
-                        "com.oplus.mydevices.sdk.DeviceInfoManager", loader);
-                Object manager = XposedHelpers.callStaticMethod(managerType, "getInstance");
-                XposedHelpers.callMethod(manager, "notifyCardRemoved", java.util.Collections.singletonList(id));
-            } catch (Throwable ignored) { }
-            if (rows > 0) {
-                droppedMac = mac;
-                Log.i("OplusBandBridge", "DEVICE_SPACE_DUPLICATE_REMOVED " + rows);
-            }
+            Bundle extras = new Bundle();
+            extras.putBoolean("yield", present);
+            hostContext.getContentResolver().call(DeviceCardProvider.URI, "spaceYield", null, extras);
+            yielded = present;
+            Log.i("OplusBandBridge", "DEVICE_SPACE_YIELD " + present);
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "DEVICE_SPACE_DUPLICATE_UNAVAILABLE "
+            Log.i("OplusBandBridge", "DEVICE_SPACE_YIELD_UNAVAILABLE "
+                    + failure.getClass().getSimpleName());
+        }
+    }
+
+    private static boolean healthCardPresent(String mac) {
+        String id = healthCardId(mac);
+        if (id.isEmpty()) return false;
+        android.net.Uri uri = android.net.Uri.parse(
+                "content://com.heytap.health.WatchProvider/device_info_table_new");
+        try (android.database.Cursor cursor = hostContext.getContentResolver().query(
+                uri, new String[] {"device_id"}, "device_id=?", new String[] {id}, null)) {
+            return cursor != null && cursor.moveToFirst() && id.equals(cursor.getString(0));
+        } catch (Throwable failure) {
+            Log.i("OplusBandBridge", "DEVICE_SPACE_LOOKUP_UNAVAILABLE "
+                    + failure.getClass().getSimpleName());
+            return false;
+        }
+    }
+
+    private static void refreshHealthCard(ClassLoader loader, String mac, Bundle shown) {
+        boolean connected = shown.getBoolean("connected");
+        int battery = shown.getInt("battery", -1);
+        if (pushedBattery == battery && pushedConnected == connected) return;
+        try {
+            Class<?> managerType = XposedHelpers.findClass(
+                    "com.oplus.mydevices.sdk.DeviceInfoManager", loader);
+            Object manager = XposedHelpers.callStaticMethod(managerType, "getInstance");
+            Object info = XposedHelpers.callMethod(manager, "queryDeviceById", healthCardId(mac));
+            if (info == null) return;
+            patchSdkDevice(info, shown);
+            XposedHelpers.callMethod(manager, "update", info);
+            pushedBattery = battery;
+            pushedConnected = connected;
+        } catch (Throwable failure) {
+            Log.i("OplusBandBridge", "DEVICE_SPACE_REFRESH_UNAVAILABLE "
                     + failure.getClass().getSimpleName());
         }
     }
