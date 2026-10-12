@@ -304,7 +304,11 @@ public final class CredentialProvider extends ContentProvider {
         String model = input.getString("model", "").trim();
         if (model.isBlank()) throw new IllegalArgumentException("BINDING_MODEL_REQUIRED");
         JSONObject existing = TransportObservation.read(getContext());
-        if (!TransportObservation.supportsLive(existing, model)) {
+        boolean realCapture = existing != null
+                && !"manual".equals(existing.optString("source", ""))
+                && TransportObservation.supportsLive(existing, model);
+        if (!realCapture) {
+            // Manual re-imports may switch the profile; only a real hook capture is kept.
             TransportObservation.write(getContext(),
                     TransportObservation.manualProfile(model, input.getString("profile", "")));
         }
