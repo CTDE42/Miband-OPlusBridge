@@ -38,6 +38,7 @@ public final class MyDevicesHook {
     private static final String MANAGER = "com.heytap.mydevices.core.config.DeviceAppConfigManager";
     private static final String APP_AGENT = "com.heytap.mydevices.core.agent.AppAgentManager";
     private static final String CARRIED_OBSERVER = "mydevices.cardObserver";
+    private static final String CARRIED_CARD = "mydevices.cardId";
     private static volatile ObserverSession active;
 
     private MyDevicesHook() {}
@@ -403,6 +404,7 @@ public final class MyDevicesHook {
         final Handler handler;
         final ContentObserver changes;
         Snapshot last;
+        String withdrawn;
 
         ObserverSession(Context context, Object observer, Method removed, Method added,
                         Method updated, HandlerThread thread) {
@@ -432,10 +434,21 @@ public final class MyDevicesHook {
                 }
                 if (active != this) return;
                 Snapshot before = last;
-                if (before != null && (now == null || !before.id().equals(now.id()))) {
+                // Hot reload drops this session. The host still shows the card the previous generation added.
+                if (before == null) {
+                    Object remembered = HookRuntime.carried(CARRIED_CARD);
+                    if (remembered instanceof String id && !id.isBlank()) before = new Snapshot(id, Long.MIN_VALUE);
+                }
+                if (now == null && before == null) before = published();
+                if (before != null && (now == null || !before.id().equals(now.id()))
+                        && !before.id().equals(withdrawn)) {
                     removed.invoke(observer, before.id(), false, PACKAGE);
+                    withdrawn = before.id();
+                    HookRuntime.carry(CARRIED_CARD, null);
                 }
                 if (now != null) {
+                    withdrawn = null;
+                    HookRuntime.carry(CARRIED_CARD, now.id());
                     if (before == null || !before.id().equals(now.id())) {
                         added.invoke(observer, now.id());
                     } else if (before.revision() != now.revision()) {
@@ -445,6 +458,20 @@ public final class MyDevicesHook {
                 last = now;
             } catch (Exception unavailable) {
                 HookRuntime.log("DEVICE_CARD_OBSERVER_UNAVAILABLE", unavailable);
+            }
+        }
+
+        /** The registered band, even when the card query is empty because Health already has one. */
+        private Snapshot published() {
+            try {
+                android.os.Bundle display = context.getContentResolver().call(
+                        DeviceCardProvider.URI, "bandDisplay", null, null);
+                if (display == null || !display.getBoolean("registered", false)) return null;
+                String id = display.getString("deviceId", "");
+                if (id == null || id.isBlank()) return null;
+                return new Snapshot(id, Long.MIN_VALUE);
+            } catch (RuntimeException unavailable) {
+                return null;
             }
         }
     }
