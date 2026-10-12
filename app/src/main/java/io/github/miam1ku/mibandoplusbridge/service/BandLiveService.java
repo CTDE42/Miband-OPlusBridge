@@ -427,6 +427,7 @@ public final class BandLiveService extends Service {
             io.github.miam1ku.mibandoplusbridge.data.SessionLog.line(context, "NOTIFY_OUT type=" + fitted.getType()
                     + " subtype=" + fitted.getSubtype() + " bytes=" + fitted.getSerializedSize());
             noteIconPackage(fitted);
+            routeWatchCall(context, fitted);
             return queue.send(fitted);
         } catch (IllegalArgumentException tooLarge) {
             io.github.miam1ku.mibandoplusbridge.data.SessionLog.line(context, "NOTIFY_DROP reason=too-large");
@@ -469,12 +470,33 @@ public final class BandLiveService extends Service {
             io.github.miam1ku.mibandoplusbridge.data.SessionLog.line(context, "NOTIFY_OUT type=" + fitted.getType()
                     + " subtype=" + fitted.getSubtype() + " bytes=" + fitted.getSerializedSize());
             noteIconPackage(fitted);
+            routeWatchCall(context, fitted);
             return queue.send(fitted);
         } catch (IllegalArgumentException tooLarge) {
             io.github.miam1ku.mibandoplusbridge.data.SessionLog.line(context, "NOTIFY_DROP reason=too-large");
             return java.util.concurrent.CompletableFuture.failedFuture(
                     new IllegalStateException("NOTIFICATION_IDENTITY_TOO_LARGE"));
         }
+    }
+
+    /** Watches show the call over HFP. The notification packet still carries the name. */
+    private static void routeWatchCall(Context context,
+            nodomain.freeyourgadget.gadgetbridge.proto.xiaomi.XiaomiProto.Command command) {
+        var notification = command.getNotification();
+        boolean call = command.getSubtype() == 0 && notification.hasNotification2()
+                && io.github.miam1ku.mibandoplusbridge.protocol.BandNotificationCommand.isCall(
+                        notification.getNotification2().getNotification3());
+        boolean clearCall = command.getSubtype() == 1 && notification.hasNotificationDismiss()
+                && notification.getNotificationDismiss().getNotificationIdCount() == 1
+                && "phone".equals(notification.getNotificationDismiss().getNotificationId(0).getPackage())
+                && notification.getNotificationDismiss().getNotificationId(0).getId() == 0;
+        if (!call && !clearCall) return;
+        String model = io.github.miam1ku.mibandoplusbridge.data.LocalPrefs.open(context, "band-state")
+                .getString("modelId", "");
+        if (!io.github.miam1ku.mibandoplusbridge.data.BandCatalog.watchForm(model)) return;
+        int state = call ? notification.getNotification2().getNotification3().getCallState() : 0;
+        io.github.miam1ku.mibandoplusbridge.notify.WatchCallHeadset.apply(context,
+                io.github.miam1ku.mibandoplusbridge.notify.WatchCallRoute.link(true, state));
     }
 
     private static boolean notificationCommand(
@@ -528,6 +550,7 @@ public final class BandLiveService extends Service {
             io.github.miam1ku.mibandoplusbridge.data.SessionLog.line(this, "NOTIFY_OUT type=" + fitted.getType()
                     + " subtype=" + fitted.getSubtype() + " bytes=" + fitted.getSerializedSize());
             noteIconPackage(fitted);
+            routeWatchCall(this, fitted);
             queue.send(fitted).whenComplete((ignored, error) -> {
                 if (error == null) held.succeed();
                 else held.fail(error);
