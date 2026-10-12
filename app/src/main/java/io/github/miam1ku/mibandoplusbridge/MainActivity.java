@@ -1127,7 +1127,7 @@ public final class MainActivity extends AppCompatActivity {
         TextView view = new TextView(this);
         view.setText(text);
         view.setTextSize(14);
-        view.setTypeface(null, android.graphics.Typeface.DEFAULT_BOLD);
+        view.setTypeface(null, android.graphics.Typeface.BOLD);
         view.setTextColor(MaterialColors.getColor(this,
                 com.google.android.material.R.attr.colorPrimary, 0));
         int pad = BridgeScreen.dp(this, 4);
