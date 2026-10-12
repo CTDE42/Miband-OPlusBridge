@@ -204,6 +204,9 @@ final class BleGattClient implements AutoCloseable {
                 if (!submit(op)) op.error = "BLE_WRITE_FAILED";
                 else if (!op.finished.await(400, TimeUnit.MILLISECONDS)
                         && currentWrite.compareAndSet(op, null) && op.error == null) {
+                    // 回调没到就清掉 currentWrite。晚到的 onCharacteristicWrite 对不上这次操作，
+                    // 调用方要看到失败，而不是把这次写当成已经成功。
+                    op.error = "BLE_WRITE_FAILED";
                     SessionLog.line(context, "ble write callback missing");
                 }
             } catch (Exception error) {
