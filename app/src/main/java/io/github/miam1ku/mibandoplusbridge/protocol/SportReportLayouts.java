@@ -9,10 +9,12 @@ final class SportReportLayouts {
         return switch (activity * 1000 + version) {
             case 22008 -> A22_V8;
             case 22009 -> A22_V9;
+            case 23005 -> withoutLeadingSubSport(A23_V8);
             case 23008 -> A23_V8;
             case 23009 -> A23_V9;
             case 3013 -> A3_V13;
             case 3014 -> A3_V14;
+            case 8008 -> A8_V8;
             case 8011 -> A8_V11;
             case 8012 -> A8_V12;
             case 8013 -> A8_V13;
@@ -34,6 +36,13 @@ final class SportReportLayouts {
             this.name = name; this.bytes = bytes; this.floating = floating;
             this.gate = gate; this.when = when; this.values = values;
         }
+    }
+
+    /** Band 8 Pro v5 reports use the v8 field order but have no leading sub-sport flag. */
+    private static Layout withoutLeadingSubSport(Layout source) {
+        String[] flags = java.util.Arrays.copyOfRange(source.flags, 1, source.flags.length);
+        Field[] fields = java.util.Arrays.copyOfRange(source.fields, 1, source.fields.length);
+        return new Layout(source.validityBytes, flags, fields);
     }
 
     static final class Layout {
@@ -1111,6 +1120,25 @@ final class SportReportLayouts {
         new Field("totalDescent", 4, true, "totalDescentValid", null, null),
         new Field("avgHeight", 4, true, "avgHeightValid", null, null),
         new Field("maxHeight", 4, true, "maxHeightValid", null, null),
+    });
+
+    /** Band 8 Pro free-training v8. Only the prefix matched a real file; the tail is not the v11 layout. */
+    private static final Layout A8_V8 = new Layout(6, new String[] {
+        "startTimeValid",
+        "endTimeValid",
+        "totalDurationValid",
+        "activeCaloriesValid",
+        "avgHeartRateValid",
+        "maxHeartRateValid",
+        "minHeartRateValid",
+    }, new Field[] {
+        new Field("startTime", 4, false, "startTimeValid", null, null),
+        new Field("endTime", 4, false, "endTimeValid", null, null),
+        new Field("totalDuration", 4, false, "totalDurationValid", null, null),
+        new Field("activeCalories", 2, false, "activeCaloriesValid", null, null),
+        new Field("avgHeartRate", 1, false, "avgHeartRateValid", null, null),
+        new Field("maxHeartRate", 1, false, "maxHeartRateValid", null, null),
+        new Field("minHeartRate", 1, false, "minHeartRateValid", null, null),
     });
 
     private static final Layout A8_V11 = new Layout(7, new String[] {

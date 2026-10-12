@@ -24,6 +24,7 @@ public final class SportGpsParser {
         int activity = (descriptor & 0x7f) >>> 2;
         if (activity != 22 && activity != 23) throw unsupported("UNSUPPORTED_SPORT_FILE");
         int version = bytes[5] & 0xff;
+        if (version == 2) return parseFixedStride(bytes, 1, 4, 2);
         int validityBytes = version >= 5 ? 2 : 1;
         if (version < 3 || version > 5) throw unsupported("UNSUPPORTED_SPORT_FILE");
         if (activity == 23 && version > 4) throw unsupported("UNSUPPORTED_SPORT_FILE");
@@ -54,6 +55,48 @@ public final class SportGpsParser {
         long first = 0;
         long last = 0;
         for (int i = 0; i < count && cursor <= end - stride; i++) {
+            long pointMs = headerMs;
+            int at = cursor;
+            if (time) {
+                pointMs = Integer.toUnsignedLong(leInt(bytes, at)) * 1000L;
+                at += 4;
+            }
+            float lon = leFloat(bytes, at);
+            at += 4;
+            float lat = leFloat(bytes, at);
+            cursor += stride;
+            if (!Float.isFinite(lat) || !Float.isFinite(lon) || lat < -90f || lat > 90f || lon < -180f || lon > 180f) {
+                continue;
+            }
+            if (lat == 0 && lon == 0) continue;
+            if (points.isEmpty()) first = pointMs;
+            last = pointMs;
+            points.add(new double[] {lat, lon, pointMs});
+        }
+        if (points.size() < 2) throw unsupported("UNSUPPORTED_SPORT_FILE");
+        long start = headerMs > 0 ? headerMs : first;
+        long stop = Math.max(start + 1000L, Math.max(last, first));
+        List<double[]> kept = downsample(points);
+        return new Track(start, stop, kept.size(), payload(kept));
+    }
+
+    /**
+     * Band 8 Pro GPS v2. One flag byte, then points until the CRC.
+     * After time, longitude and latitude the tail is a speed float and a uint16.
+     * The top three flag bits are set on a real file and are not more fields.
+     */
+    private static Track parseFixedStride(byte[] bytes, int validityBytes, int speedBytes, int tailBytes) {
+        int end = bytes.length - 4;
+        int cursor = 8 + validityBytes;
+        if (cursor > end) throw unsupported("UNSUPPORTED_SPORT_FILE");
+        boolean time = flag(bytes, 0);
+        if (!flag(bytes, 1) || !flag(bytes, 2)) throw unsupported("UNSUPPORTED_SPORT_FILE");
+        int stride = (time ? 4 : 0) + 8 + (flag(bytes, 3) ? speedBytes : 0) + (flag(bytes, 4) ? tailBytes : 0);
+        long headerMs = Integer.toUnsignedLong(leInt(bytes, 0)) * 1000L;
+        List<double[]> points = new ArrayList<>();
+        long first = 0;
+        long last = 0;
+        while (cursor <= end - stride) {
             long pointMs = headerMs;
             int at = cursor;
             if (time) {

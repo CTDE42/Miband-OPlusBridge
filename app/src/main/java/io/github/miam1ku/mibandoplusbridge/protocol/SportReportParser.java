@@ -99,7 +99,7 @@ public final class SportReportParser {
     private static Mapped map(int activity, Integer subSport) {
         return switch (activity) {
             case 22 -> foot(subSport);
-            case 23 -> subSport != null && subSport == 6
+            case 23 -> subSport == null || subSport == 6
                     ? new Mapped(3, "户外骑行", false) : unsupportedMapped();
             case 3 -> indoor(subSport);
             case 8 -> new Mapped(35, "自由活动", false);

@@ -846,6 +846,65 @@ public final class BandHistoryParserTest {
         assertTrue(track.contains("31.250000"));
         assertTrue(track.contains("121.500000"));
         assertEquals("UNSUPPORTED_SPORT_FILE", parser().parseFile(gpsFile(3, 5, 31f, 121f)).parseStatus);
+        var older = parser().parseFile(gpsV2(23, 28.6999f, 116.0169f));
+        assertEquals("PARSED", older.parseStatus);
+        assertEquals("sport_track", older.measurements.get(0).kind);
+        assertTrue(older.measurements.get(0).track.contains("28.699900"));
+        assertTrue(older.measurements.get(0).track.contains("116.016899"));
+    }
+
+    @Test public void band8ProExportedSummariesBecomeTheRideAndTheFreeSession() throws Exception {
+        java.io.File zip = new java.io.File("analysis/history.zip");
+        if (!zip.isFile()) zip = new java.io.File("../analysis/history.zip");
+        org.junit.Assume.assumeTrue(zip.isFile());
+        try (java.util.zip.ZipFile archive = new java.util.zip.ZipFile(zip)) {
+            var ride = parser().parseFile(zipEntry(archive, "8ef97f7b7e03"));
+            assertEquals("PARSED", ride.parseStatus);
+            assertEquals(3, ride.measurements.get(0).value.intValue());
+            assertEquals(Integer.valueOf(56812), ride.measurements.get(0).distance);
+            assertEquals(Integer.valueOf(1435), ride.measurements.get(0).calories);
+            assertEquals(Integer.valueOf(143), ride.measurements.get(0).heart);
+            assertEquals("+08:00", ride.measurements.get(0).timezone);
+            var free = parser().parseFile(zipEntry(archive, "f4a9967a492a"));
+            assertEquals("PARSED", free.parseStatus);
+            assertEquals(35, free.measurements.get(0).value.intValue());
+            assertEquals(Integer.valueOf(4), free.measurements.get(0).calories);
+            assertEquals(Integer.valueOf(90), free.measurements.get(0).heart);
+            var track = parser().parseFile(zipEntry(archive, "a1e7d3860bb2"));
+            assertEquals("PARSED", track.parseStatus);
+            assertEquals(1500, track.measurements.get(0).value.intValue());
+            assertTrue(track.measurements.get(0).track.contains("28.699883"));
+        }
+    }
+
+    private static byte[] zipEntry(java.util.zip.ZipFile archive, String prefix) throws Exception {
+        java.util.zip.ZipEntry match = null;
+        var entries = archive.entries();
+        while (entries.hasMoreElements()) {
+            java.util.zip.ZipEntry entry = entries.nextElement();
+            if (entry.getName().contains(prefix)) {
+                match = entry;
+                break;
+            }
+        }
+        if (match == null) throw new IllegalStateException(prefix);
+        return archive.getInputStream(match).readAllBytes();
+    }
+
+    /** Band 8 Pro GPS v2: flag byte, then time, longitude, latitude, speed float, uint16. */
+    private static byte[] gpsV2(int activity, float lat, float lon) {
+        java.nio.ByteBuffer body = java.nio.ByteBuffer.allocate(18 * 2).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        for (int i = 0; i < 2; i++) {
+            body.putInt(START_SECONDS + i);
+            body.putFloat(lon);
+            body.putFloat(lat);
+            body.putFloat(14f);
+            body.putShort((short) 800);
+        }
+        byte[] data = new byte[1 + 1 + body.capacity()];
+        data[1] = (byte) 0xFF;
+        System.arraycopy(body.array(), 0, data, 2, body.capacity());
+        return file(2, 0x80 | (activity << 2) | 2, data);
     }
 
     private static byte[] gpsFile(int activity, int version, float lat, float lon) {
