@@ -132,7 +132,7 @@ public final class OHealthHealthImportHook {
                 });
         XposedBridge.hookMethod(host.accountGetter, new XC_MethodHook() {
             @Override protected void afterHookedMethod(MethodHookParam param) {
-                // 记下健康这次返回的账号。再调 getSsoId 会重走账号 SDK，可能换成另一个游客号。
+                // Keep the account Health just returned. getSsoId walks the account SDK again and can come back as a different guest id. 
                 String account = param.hasThrowable() ? null : (String) param.getResult();
                 if (!usableAccount(account)) return;
                 String previous = observedAccount.getAndSet(account);

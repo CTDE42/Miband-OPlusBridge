@@ -12,14 +12,14 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * 控制中心点到手环时，把详情意图交给健康里响应该动作的面板。
- * 目标类按动作解析，不写死某一版的类名。
+ * A control-center tap on the band hands the detail intent to the Health panel that handles the action.
+ * The target class is resolved from the action, so one build's class name is not pinned.
  */
 public final class NativePanel {
     public static final String PANEL = "com.oplus.mydevices.ACTION_DEVICE_DETAILED_PANEL";
     public static final String PAGE = "com.oplus.mydevices.ACTION_DEVICE_DETAILED_PAGE";
     public static final String HEALTH = "com.heytap.health";
-    /** 健康原生页只认这只 OPPO 手环型号。 */
+    /** Health's native page accepts this OPPO band model. */
     public static final String BAND_MODEL = "OB19B1";
     private static final Pattern BAND = Pattern.compile("miband11_[0-9a-f]{64}");
 
@@ -42,7 +42,7 @@ public final class NativePanel {
         return new ComponentName(info.activityInfo.packageName, info.activityInfo.name);
     }
 
-    /** 就地改到健康面板。已经指向该面板、或不是这只手环时不动。 */
+    /** Rewrites the intent onto the Health panel. An intent already aimed there, or not this band, stays as it is. */
     public static boolean redirect(Context context, Intent intent) {
         if (intent == null || !panelAction(intent.getAction())) return false;
         String deviceId = intent.getStringExtra("device_id");

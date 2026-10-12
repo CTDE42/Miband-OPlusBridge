@@ -27,7 +27,7 @@ public final class CallPresentation {
         return kind(notification) == Kind.ACTIVE;
     }
 
-    /** A running timer or an explicit in-call label. Dialing copy such as 正在呼叫 stays outgoing. */
+    /** A running timer or an explicit in-call label. Dialing copy such as 「正在呼叫」(calling) stays outgoing. */
     public static boolean connected(boolean showChronometer, String text, String title) {
         return kind(showChronometer, false, 0, text, title) == Kind.ACTIVE;
     }

@@ -40,12 +40,12 @@ public final class BandLiveService extends Service {
     private long nextBatteryAt;
     private long nextHealthAt;
     private long nextWeatherAt;
-    /** 空闲时只问电量和今天的文件列表。没变的文件和天气离开射频，好让 ACL 还能嗅探。 */
+    /** While idle, ask only for the battery and today's file list. Unchanged files and weather stay off the radio so the ACL can still sniff. */
     private static final long IDLE_POLL_MINUTES = 30;
     private static final long REALTIME_STATS_TIMEOUT_SECONDS = 30;
-    /** 8/45 打开手环的实时数据流。这条流开着时手环才测心率，所以只取第一份快照。 */
+    /** 8/45 opens the band's live-stats stream. The band measures heart rate while that stream runs, so only the first snapshot is kept. */
     private static final int REALTIME_STATS_START = 45;
-    /** 8/46 在第一份快照之后关掉实时流。 */
+    /** 8/46 stops the live stream after the first snapshot. */
     private static final int REALTIME_STATS_STOP = 46;
     private WeatherSync weatherSync;
     private HealthReplay healthReplay;

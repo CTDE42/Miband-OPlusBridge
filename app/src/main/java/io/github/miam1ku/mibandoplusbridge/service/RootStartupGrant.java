@@ -11,20 +11,20 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Runs as root through {@code app_process}. Turns on ColorOS「自启动」and「关联启动」for the
- * given packages through the provider the system settings page uses
- * ({@code com.oplus.startup.provider}, in {@code com.oplus.battery}).
+ * Runs as root through {@code app_process}. Turns on ColorOS 「自启动」(autostart) and
+ * 「关联启动」(associate start) for the given packages through the provider the system settings
+ * page uses ({@code com.oplus.startup.provider}, in {@code com.oplus.battery}).
  *
- * <p>Without「关联启动」, {@code OplusAppStartupManager} refuses to start this app when OPPO 健康
- * opens one of its content providers ("prevent start ... by contentprovider"). After every
- * package update the bridge process is gone, so OPPO 健康 only sees {@code Unknown authority}
- * until the bridge is opened by hand. Without「自启动」, {@code MY_PACKAGE_REPLACED} and
- * {@code BOOT_COMPLETED} do not start the bridge either.</p>
+ * <p>Without 「关联启动」, {@code OplusAppStartupManager} refuses to start this app when
+ * 「OPPO 健康」(OPPO Health) opens one of its content providers
+ * ("prevent start ... by contentprovider"). After every package update the bridge process is gone,
+ * so Health only sees {@code Unknown authority} until the bridge is opened by hand.
+ * Without 「自启动」, {@code MY_PACKAGE_REPLACED} and {@code BOOT_COMPLETED} leave the bridge stopped too.</p>
  *
- * <p>标准输出就是结果通道：这个类经 {@code app_process} 以 root 运行，调用方从进程输出读结果。
- * 每个包一行 {@code <pkg> auto=<bool> associate=<bool>}，调用方最多读
- * {@link OwnershipController#MAX_COMMAND_OUTPUT} 字节。一行只放这一条状态，结果才能完整回到桥接进程。
- * 退出码 0 表示每个包的自启动和关联启动都已允许。</p>
+ * <p>Stdout is the result channel: this class runs as root under {@code app_process}, and the caller
+ * reads the process output. One line per package, {@code <pkg> auto=<bool> associate=<bool>}, and the
+ * caller reads at most {@link OwnershipController#MAX_COMMAND_OUTPUT} bytes. Each line carries that
+ * one status so the whole result fits. Exit code 0 means every package is allowed for both lists.</p>
  */
 public final class RootStartupGrant {
     static final String AUTHORITY = "com.oplus.startup.provider";

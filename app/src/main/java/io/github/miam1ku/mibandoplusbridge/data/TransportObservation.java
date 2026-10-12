@@ -4,10 +4,10 @@ package io.github.miam1ku.mibandoplusbridge.data;
 import android.content.Context;
 import org.json.JSONObject;
 
-/** 最近一次核对过的传输参数，SPP 或 GATT。放在 no_backup，躲开偏好重定向，诊断重采时可以盖掉。 */
+/** Last checked transport profile, SPP or GATT. Stored under no_backup so a preference redirect cannot hide it, and a new diagnostic capture replaces it. */
 public final class TransportObservation {
     public static final int APP_CAPABILITY = 25_171_686;
-    /** Mi Fitness CAPABILITY_SUPPORT_ZEN_RULE_SYNC. The band hides 同步手机勿扰 without this bit. */
+    /** Mi Fitness CAPABILITY_SUPPORT_ZEN_RULE_SYNC. The band hides 「同步手机勿扰」(sync phone DND) without this bit. */
     public static final int ZEN_RULE_SYNC = 1 << 20;
     private static final String NAME = "transport-observation";
     private static final String KEY = "snapshot";

@@ -154,8 +154,8 @@ public final class OHealthDeviceHook {
     }
 
     /**
-     * 界面读的是进程内的快照引用。{@code Bundle} 还能被改，{@link #liveSnapshot()} 也会换掉它。
-     * 要拿一份稳定副本时用 {@link #registeredSnapshot()}。
+     * UI hooks read the process-local snapshot reference. The {@code Bundle} can still be mutated,
+     * and {@link #liveSnapshot()} replaces it. {@link #registeredSnapshot()} returns a stable copy.
      */
     private static Bundle display() {
         Bundle shown = snapshot;
@@ -1072,7 +1072,7 @@ public final class OHealthDeviceHook {
         }
     }
 
-    /** 设备空间的卡片 id 是 MAC 文本的 MD5。这里按传入字符串原样哈希，调用方先收成大写、带冒号的形式。 */
+    /** The device-space card id is the MD5 of the MAC text. The string is hashed as given, so the caller supplies uppercase colon form. */
     private static String healthCardId(String mac) {
         try {
             byte[] digest = java.security.MessageDigest.getInstance("MD5")
@@ -1297,9 +1297,9 @@ public final class OHealthDeviceHook {
     private static final java.util.concurrent.ExecutorService ALLOWLIST =
             HookRuntime.worker("OplusBandAllowlist", 0);
     /**
-     * 策略推送原先排在 ALLOWLIST 上，并用 {@code Thread.sleep} 等 0.5 到 5 秒。
-     * 通知转发和白名单查询也走那条线程，所以一次防抖会把通知挡住同样久。
-     * 延迟放到这条单独的调度线程上，ALLOWLIST 只跑转发和白名单查询。
+     * Policy pushes used to run on ALLOWLIST and wait with {@code Thread.sleep} for 0.5 to 5 seconds.
+     * Notification forwarding and the allowlist query share that thread, so one debounce held notifications
+     * for the same time. The delay now lives on this scheduler, and ALLOWLIST only forwards and queries.
      */
     private static final java.util.concurrent.ScheduledExecutorService POLICY = policyScheduler();
     private static final Map<String, Boolean> FORWARDED_EVENTS = new java.util.LinkedHashMap<>();
@@ -1309,7 +1309,7 @@ public final class OHealthDeviceHook {
             new java.util.concurrent.atomic.AtomicInteger();
     private static final Object POLICY_LOCK = new Object();
     private static java.util.concurrent.ScheduledFuture<?> policyTask;
-    /** 同一次推送失败后再试的次数。健康里的开关变更会经 schedulePolicy 把计数清零。 */
+    /** Retries after one policy push fails. A switch change in Health clears the count through schedulePolicy. */
     static final int MAX_POLICY_ATTEMPTS = 6;
 
     static boolean registeredBand() {
@@ -1329,9 +1329,9 @@ public final class OHealthDeviceHook {
     }
 
     /**
-     * 把健康里的通知译成本地命令，经桥接 provider 送出手环。
-     * 注册中心 {@code onNotificationPosted} 之后调用时，健康已经决定放行。
-     * 事件管理器 {@code onNotificationPosted} 之前也会调用，那时健康自己的过滤还没跑，随后这次投递被拦住。
+     * Translates a Health notification into a local command and sends it through the bridge provider.
+     * After the register center's {@code onNotificationPosted}, Health has already admitted it.
+     * The event manager's {@code onNotificationPosted} is also hooked before Health's own filter, and that call is then swallowed.
      */
     private static void forwardHostNotification(Object bean, boolean removed) {
         String process = android.app.Application.getProcessName();
@@ -1562,8 +1562,9 @@ public final class OHealthDeviceHook {
         }
     }
     /**
-     * 返回 null 表示按健康白名单放行。查询超时、线程被中断，以及多数异常也返回 null，失败时同样放行。
-     * Room 查询放到 {@code ALLOWLIST} 上，主线程在这里等结果。
+     * Null means the Health allowlist admits this package. A query timeout, an interrupt, and most
+     * exceptions also return null, so a failed lookup admits the package too.
+     * The Room query runs on {@code ALLOWLIST}, and the main thread waits here for the result.
      */
     private static String readAllowBlock(Object bean) {
         if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) return allowBlock(bean);
@@ -1636,7 +1637,7 @@ public final class OHealthDeviceHook {
         enqueuePolicy(policyGeneration.incrementAndGet(), delayMs);
     }
 
-    /** 第 1 次 5 秒，之后翻倍，到 60 秒封顶。 */
+    /** First retry waits 5 seconds, then doubles, and stops growing at 60 seconds. */
     static long policyRetryDelayMs(int attempt) {
         int shift = Math.max(0, Math.min(attempt - 1, 4));
         return Math.min(60_000L, 5_000L << shift);
@@ -1663,7 +1664,7 @@ public final class OHealthDeviceHook {
                 }, Math.max(0, delayMs), java.util.concurrent.TimeUnit.MILLISECONDS);
             }
         } catch (java.util.concurrent.RejectedExecutionException rejected) {
-            // 热重载会 shutdown 这一代调度器，被拒绝的推送由新一代重新安装。
+            // Hot reload shuts this generation's scheduler down. The new generation installs the push again. 
         }
     }
 

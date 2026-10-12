@@ -204,12 +204,12 @@ public final class LiveCommandQueue implements AutoCloseable {
         }
     }
 
-    /** 调用方用这个异常标明取消原因。范围是还没发出的普通通知。 */
+    /** The caller names the cancel reason with this exception. Only ordinary posts that have not been sent are cancelled. */
     public void cancelNotifications(Throwable cause) {
         cancelUnsent(false);
     }
 
-    /** 调用方用这个异常标明取消原因。范围是还没发出的通话状态。 */
+    /** The caller names the cancel reason with this exception. Only phone state that has not been sent is cancelled. */
     public void cancelCall(Throwable cause) {
         cancelUnsent(true);
     }

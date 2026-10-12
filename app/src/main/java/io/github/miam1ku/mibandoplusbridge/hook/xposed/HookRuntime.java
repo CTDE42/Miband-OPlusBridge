@@ -61,7 +61,7 @@ public final class HookRuntime {
         write(Log.WARN, line, failure);
     }
 
-    /** 一次 hook 安装。宿主方法对不上时记下 token，其余安装继续。 */
+    /** One hook install. A missing host method is logged under the token, and the rest of the installs continue. */
     public static void tryHook(String token, ThrowingRunnable install) {
         try {
             install.run();

@@ -35,8 +35,9 @@ import java.util.WeakHashMap;
 import org.json.JSONObject;
 
 /**
- * 选中这只手环时，把睡眠首页和日视图拉回桥接写入的数据。
- * 历史页的标题栏副标题会说明手环区间没有计入周/月统计，历史范围用桥接保存的起止时间。
+ * While this band is selected, the sleep home and day view show the rows the bridge wrote.
+ * The history subtitle says the band interval is outside the week and month totals, and the
+ * history range uses the start and end the bridge stored.
  */
 public final class OHealthSleepHook {
     private static final String HOST = "com.heytap.health";

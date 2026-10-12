@@ -204,8 +204,8 @@ final class BleGattClient implements AutoCloseable {
                 if (!submit(op)) op.error = "BLE_WRITE_FAILED";
                 else if (!op.finished.await(400, TimeUnit.MILLISECONDS)
                         && currentWrite.compareAndSet(op, null) && op.error == null) {
-                    // 回调没到就清掉 currentWrite。晚到的 onCharacteristicWrite 对不上这次操作，
-                    // 调用方要看到失败，而不是把这次写当成已经成功。
+                    // The callback missed its wait, so currentWrite is cleared. A late
+                    // onCharacteristicWrite no longer matches this operation, and the caller sees a failure. 
                     op.error = "BLE_WRITE_FAILED";
                     SessionLog.line(context, "ble write callback missing");
                 }
@@ -400,7 +400,7 @@ final class BleGattClient implements AutoCloseable {
                         ? BleV1Codec.PAYLOAD_ACK : BleV1Codec.CHUNK_END_ACK);
                 SessionLog.line(context, "rx ble bytes=" + payload.length
                         + (activityChar ? " activity" : ""));
-                // ACK 已经回给手环。队列放不下时这包到不了上层，会话停下来，避免按缺了一段的数据继续。
+                // The band already has the ACK. A full queue means this packet never reaches the caller, so the session stops instead of continuing with a gap. 
                 if (!incoming.offer(new Rx(payload, activityChar))) overflow();
             }
         } catch (IllegalArgumentException ignored) {

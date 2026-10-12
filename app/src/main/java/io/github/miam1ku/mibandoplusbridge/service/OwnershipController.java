@@ -15,20 +15,21 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * 连接所有权只操作固定包名，并且可以退回官方管理。shell 命令在这个类里拼好。
+ * Connection ownership touches only fixed package names, and it can hand the band back to the official app.
+ * Shell commands are assembled in this class.
  *
- * <p>{@link #beginNativeSession()} 在整段 SPP 会话期间持有 {@code GATE} 的读锁。
- * 持有读锁时再调 {@link #takeOver()} 会等写锁，写锁又要等这条读锁，于是死锁。
- * 会话进行中要改所有权，先 {@link #endNativeSession()}。</p>
+ * <p>{@link #beginNativeSession()} holds the {@code GATE} read lock for the whole SPP session.
+ * {@link #takeOver()} waits for the write lock, and the write lock waits for that read lock, so calling
+ * takeover while the session lock is held deadlocks. End the session with {@link #endNativeSession()} first.</p>
  */
 public final class OwnershipController {
     private static final String BRIDGE = "io.github.miam1ku.mibandoplusbridge";
     private static final String OFFICIAL = HostIdentity.MI_PACKAGE;
-    /** id、pm、自启动授权这几条命令的输出都是短文本。 */
+    /** id, pm, and the startup-grant helper all return short text. */
     static final int MAX_COMMAND_OUTPUT = 4096;
     /**
-     * {@code cmd deviceidle whitelist} 把系统包打在前面，一台机上可以有几百行。
-     * 读到这个上限仍有剩余字节时，名单视为不完整。
+     * {@code cmd deviceidle whitelist} prints system packages first, and a device can have hundreds of lines.
+     * Bytes still waiting at this limit mean the list is incomplete.
      */
     static final int MAX_WHITELIST_OUTPUT = 256 * 1024;
     private static final ReentrantReadWriteLock GATE = new ReentrantReadWriteLock(true);
@@ -56,7 +57,7 @@ public final class OwnershipController {
                 && context.getSystemService(UserManager.class).isUserUnlocked();
     }
 
-    /** 用户在 KernelSU 里允许这个应用之后，{@code id -u} 才是 0。KernelSU 没有授权弹窗，这里只探测。 */
+    /** {@code id -u} is 0 after the user has allowed this app in KernelSU. KernelSU has no grant dialog, so this only probes. */
     public boolean probeRoot() {
         try {
             return "0".equals(execute("id -u", 8));
@@ -145,7 +146,7 @@ public final class OwnershipController {
         }
     }
 
-    /** 回滚把官方包恢复到接管前的启用状态。失败时小米运动健康会停在停用，调用方把这个结果交给界面。 */
+    /** Rollback returns the official package to the enabled state from before takeover. On failure Xiaomi Health stays disabled, and the caller shows that result. */
     private boolean rollbackPending(int original) {
         try {
             restorePackage(original);
@@ -201,9 +202,10 @@ public final class OwnershipController {
     }
 
     /**
-     * ColorOS「自启动」and「关联启动」for the bridge and OPPO 健康. Without them the system refuses to
-     * start the bridge for OPPO 健康's provider calls and for MY_PACKAGE_REPLACED, so after an update
-     * OPPO 健康 sees {@code Unknown authority} until the bridge is opened by hand.
+     * ColorOS 「自启动」(autostart) and 「关联启动」(associate start) for the bridge and
+     * 「OPPO 健康」(OPPO Health). Without them the system refuses to start the bridge for Health's
+     * provider calls and for MY_PACKAGE_REPLACED, so after an update Health sees
+     * {@code Unknown authority} until the bridge is opened by hand.
      * Returns the helper output, or null when it could not run.
      */
     public String ensureStartupAllowed() {
@@ -225,12 +227,12 @@ public final class OwnershipController {
     }
 
     /**
-     * 省电白名单按逗号分隔后的整段包名匹配。一行是 {@code user,包名,uid} 或
-     * {@code system-excidle,包名,uid}，系统包排在前面。
-     * 以前只读 256 字节，桥接包名落在截断后面，{@code contains} 判成不在名单里，
-     * 于是每次都执行 {@code whitelist +} 并把 {@code dozeAdded} 写成 true。
-     * 恢复官方管理时 {@code whitelist -} 就会删掉用户自己加过的项。
-     * 读到上限还有剩余字节时命令失败，名单保持原样。
+     * The doze whitelist matches a whole comma-separated package field. A line is
+     * {@code user,package,uid} or {@code system-excidle,package,uid}, and system packages come first.
+     * A 256-byte read used to hide the bridge package, so {@code contains} treated it as absent,
+     * every pass ran {@code whitelist +}, and {@code dozeAdded} became true.
+     * Restore then ran {@code whitelist -} and removed a row the user had added.
+     * Bytes still waiting at the cap fail the command and leave the list as it is.
      */
     private void ensureDoze() throws Failure {
         String list = execute("cmd deviceidle whitelist", 30, MAX_WHITELIST_OUTPUT);
@@ -240,13 +242,13 @@ public final class OwnershipController {
         try {
             execute("cmd deviceidle whitelist -" + BRIDGE);
         } catch (Failure removeFailed) {
-            // prefs 没写上，dozeAdded 仍是 false，之后的恢复不会再发 whitelist -。
-            // 这次移除是把刚刚加上的项撤回去的机会。
+            // The prefs write missed, so dozeAdded stays false and a later restore skips whitelist -.
+            // This removal is the chance to take back the row just added.
         }
         throw new Failure("OWNERSHIP_STORAGE_FAILED");
     }
 
-    /** 包名必须占逗号或空白分隔出的一整段，避免命中更长的包名。 */
+    /** The package name has to be a whole comma- or whitespace-separated field, so a longer package name is not a hit. */
     static boolean whitelistContains(String list, String packageName) {
         if (list == null || packageName == null || packageName.isEmpty()) return false;
         for (String line : list.split("\\R")) {
@@ -297,7 +299,7 @@ public final class OwnershipController {
         }
     }
 
-    /** 读到流结束。达到 maxOutput 后仍有字节时抛出，调用方把这次输出当成不完整。 */
+    /** Reads until the stream ends. Bytes still waiting after maxOutput make the output incomplete for the caller. */
     static String readLimited(InputStream in, int maxOutput) throws IOException {
         byte[] buf = new byte[Math.min(8192, Math.max(1, maxOutput))];
         ByteArrayOutputStream out = new ByteArrayOutputStream();

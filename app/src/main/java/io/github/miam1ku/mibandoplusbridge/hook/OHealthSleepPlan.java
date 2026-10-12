@@ -12,15 +12,16 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 一个睡眠日上的每段手环会话都留下。行按睡眠协议版本 11 写：
- * 间隔超过 20 分钟的后一段单独成卡，短于 120 分钟的是小睡。
+ * Every band session on a sleep-day is kept. Rows use sleep protocol version 11:
+ * a later session stays its own card once the gap passes 20 minutes, and a session
+ * under 120 minutes is a nap.
  */
 public final class OHealthSleepPlan {
-    /** 宿主 Sleep.sleepState。映射把 2、3、4 收成深睡、REM、浅睡，其余状态收成清醒。 */
+    /** Host Sleep.sleepState. The mapping folds 2, 3, and 4 into deep, REM, and light, and every other state into awake. */
     public static final int DEEP = 2;
     public static final int REM = 3;
     public static final int LIGHT = 4;
-    /** 官方的短清醒。睡眠状态值是 5。图表类型 4 是另一套编号，和这个常量不是一回事。这段时间不计入睡眠分钟。 */
+    /** Official short wake. The sleep-state value is 5. Chart type 4 is a different numbering. These minutes stay out of sleep time. */
     public static final int AWAKE = 5;
 
     public record Segment(long startMs, long endMs, int sleepState) {}
@@ -42,7 +43,7 @@ public final class OHealthSleepPlan {
 
     private OHealthSleepPlan() {}
 
-    /** 醒来时刻落在哪个 20:00 到次日 20:00 的窗口，就记哪一天。 */
+    /** The calendar date whose 20:00-to-20:00 window contains this wake time. */
     public static int sleepDate(long endMs, ZoneId zone) {
         var local = Instant.ofEpochMilli(endMs).atZone(zone).toLocalDateTime();
         LocalDate day = local.getHour() >= 20 ? local.toLocalDate().plusDays(1) : local.toLocalDate();
@@ -50,8 +51,9 @@ public final class OHealthSleepPlan {
     }
 
     /**
-     * 健康把睡眠小结的钟点存成睡眠日分钟，和宿主 StoreUtil.changeMillisToCurrentDayMinutes 一样：
-     * 20:00 是 1200，01:39 是 1539。公开插入接口原样收下这个数，所以桥接在写入前换算。
+     * Health stores the sleep-summary clock as minutes of the sleep day, the same conversion as
+     * StoreUtil.changeMillisToCurrentDayMinutes: 20:00 is 1200 and 01:39 is 1539. The public insert
+     * path stores that number as given, so the bridge converts it before writing.
      */
     public static long sleepDayMinutes(long epochMs, ZoneId zone) {
         var local = Instant.ofEpochMilli(epochMs).atZone(zone).toLocalDateTime();
@@ -60,7 +62,7 @@ public final class OHealthSleepPlan {
         return hour * 60L + local.getMinute();
     }
 
-    /** 手环阶段 2 深睡、3 浅睡、4 REM、5 清醒。宿主没有单独的「熟睡」(deep sleep) 档。 */
+    /** Band stages: 2 deep, 3 light, 4 REM, 5 awake. The host has no separate deep-sleep bucket beyond state 2. */
     public static int hostState(int bandStage) {
         return switch (bandStage) {
             case 2 -> DEEP;
@@ -72,8 +74,10 @@ public final class OHealthSleepPlan {
     }
 
     /**
-     * 20:00 之前开始的会话，把自己的清空窗口拉回到这个起点。同一天的另一段会话不跟着拉。
-     * 没有阶段的区间画成一条浅睡。这条浅睡不记深睡或 REM。挤在同一分钟里的阶段裁成一段，深睡和浅睡不叠在一起。
+     * A session that starts before 20:00 pulls its own clear window back to that start.
+     * Another session on the same date stays put. An interval with no stages is one light bar,
+     * and that bar is not deep sleep or REM. Stages that share a minute are cut into one partition,
+     * so deep and light are not stacked.
      */
     public static List<Night> nights(List<HealthRecord> records) {
         List<HealthRecord> intervals = new ArrayList<>();
@@ -139,8 +143,8 @@ public final class OHealthSleepPlan {
     }
 
     /**
-     * 把会话收成睡眠日。一天的小结是各段之和，每段仍留碎片。
-     * 主会话取至少 120 分钟里最长的那段。
+     * Folds sessions into sleep-days. A day's summary is the sum of its sessions, and each session
+     * keeps its fragments. The main session is the longest one of at least 120 minutes.
      */
     public static List<Day> days(List<Night> nights) {
         if (nights == null || nights.isEmpty()) return List.of();
@@ -191,7 +195,8 @@ public final class OHealthSleepPlan {
     }
 
     /**
-     * 一天的小结是至少 120 分钟里最长的那段。更短的是小睡，替换不了这段小结。
+     * The day's summary is the longest session of at least 120 minutes.
+     * A shorter session is a nap and leaves that summary in place.
      */
     public static boolean summary(List<Night> nights, Night night) {
         if (night.sleepMinutes() < 120) return false;
@@ -204,7 +209,7 @@ public final class OHealthSleepPlan {
         return true;
     }
 
-    /** 这个睡眠日所属日历日的 [20:00, 次日 20:00)。 */
+    /** [20:00, next 20:00) of the calendar date that owns this sleep-day. */
     static long[] sleepDayWindow(int date, ZoneId zone) {
         int year = date / 10000;
         int month = (date / 100) % 100;
@@ -247,8 +252,8 @@ public final class OHealthSleepPlan {
     }
 
     /**
-     * 同一时刻只留一行。后一段从前面一段里面开始时，只留下超出的尾巴。
-     * 起点相同就留更长的那行，长度一样就留宿主状态值更小的。
+     * One row per instant. A segment that starts inside an earlier one keeps only the tail.
+     * A shared start keeps the longer row, then the lower host state.
      */
     private static List<Segment> flatten(List<Segment> segments) {
         if (segments.size() < 2) return segments;
@@ -273,8 +278,8 @@ public final class OHealthSleepPlan {
     }
 
     /**
-     * 手表协议版本 11 在间隔不超过 20 分钟时仍算同一张卡。
-     * 更短的缝按原边界接上，因为中间一有空洞就会新开一张卡。
+     * Watch protocol version 11 keeps one card while the gap is at most 20 minutes.
+     * A shorter gap is joined on the original boundary, because any hole opens a new card.
      */
     private static List<Segment> stitch(List<Segment> segments) {
         if (segments.size() < 2) return segments;
@@ -298,7 +303,7 @@ public final class OHealthSleepPlan {
         return stitched;
     }
 
-    /** 清醒分钟留在 awake，不进 {@code sleep}。 */
+    /** Awake minutes stay in awake, outside {@code sleep}. */
     private static Count count(List<Segment> segments) {
         long sleep = 0, deep = 0, light = 0, rem = 0, awake = 0;
         for (Segment segment : segments) {

@@ -30,7 +30,7 @@ public final class DeviceCardProvider extends ContentProvider {
 
     @Override public boolean onCreate() { return true; }
 
-    /** 设备空间进程里才挂卡片钩子。不核对签名，系统升级轮换证书后仍要能注入。 */
+    /** Card hooks install in the device-space process. The host is matched by package name, so a cert rotation on a system update still injects. */
     public static boolean matchesInstalledHost(Context context) {
         return HostIdentity.installed(context, HOST);
     }
@@ -88,7 +88,7 @@ public final class DeviceCardProvider extends ContentProvider {
         result.setNotificationUri(getContext().getContentResolver(), URI);
         var state = state();
         if (!state.getBoolean("registered", false)) return result;
-        // 健康已经把这只手环放进设备空间时，不再给桥接另出一张。
+        // When Health already placed this band in device space, the bridge row stays out.
         if (spaceYielded()) return result;
         String deviceId = state.getString("deviceId", "");
         if (deviceId == null || deviceId.isBlank()) return result;
@@ -146,8 +146,8 @@ public final class DeviceCardProvider extends ContentProvider {
                         state.getString("modelId", ""), state.getString("name", "")))
                 .put("mMacAddress", mac)
                 .put("modelId", NativePanel.BAND_MODEL)
-                // 图片地址空着时设备空间用 icon_default_device，看起来像手机。
-                // 手环用系统自带的手环图，手表形态才用手表图。
+                // An empty picture URL makes device space use icon_default_device, which looks like a phone.
+                // A band uses the system wristband picture; a watch shape uses the watch picture.
                 .put("mDeviceType", BandCatalog.spaceType(state.getString("modelId", "")))
                 .put("iconUrl", spaceIcon(state))
                 .put("mIconUrl", spaceIcon(state))

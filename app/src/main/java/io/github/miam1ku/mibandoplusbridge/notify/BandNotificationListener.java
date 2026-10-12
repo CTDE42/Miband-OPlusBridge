@@ -27,8 +27,8 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * 系统通知监听。准入先看包名和可见性。
- * {@code healthBlock} 会读标题和正文，所以健康策略这一步发生在读取 extras 的同时。
+ * System notification listener. Admission checks the package and visibility first.
+ * {@code healthBlock} reads the title and text, so the Health policy step happens as the extras are read.
  */
 public final class BandNotificationListener extends NotificationListenerService {
     public static final String SETTINGS = "notification-settings";
@@ -337,7 +337,7 @@ public final class BandNotificationListener extends NotificationListenerService 
 
     @Override public void onNotificationRankingUpdate(RankingMap rankings) {
         if (!notificationsAllowed()) { relay.disconnected(); BandLiveService.cancelNotifications(this); return; }
-        // 排序变低时只撤回已经送出的那条。正在显示的基线保持原样。
+        // A lower ranking withdraws a notification that was already delivered. The active baseline stays. 
         for (String key : rankings.getOrderedKeys()) {
             Ranking ranking = new Ranking();
             if (rankings.getRanking(key, ranking) && ranking.getImportance() <= NotificationManager.IMPORTANCE_LOW) {
@@ -347,7 +347,7 @@ public final class BandNotificationListener extends NotificationListenerService 
         }
     }
 
-    /** 只给正在响铃的本机来电取标题。号码在 {@link #currentIncomingCallNumber}，而且要有发短信权限。 */
+    /** Title of the SIM call that is ringing now. The number is {@link #currentIncomingCallNumber}, and that read requires the SMS permission. */
     public static String currentIncomingCallTitle(Context context) {
         BandNotificationListener current = instance;
         if (current == null || !current.sessionAllowed()

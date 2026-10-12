@@ -14,12 +14,13 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 把旧模块留在 LSPosed 偏好目录里的 SharedPreferences 搬回应用自己的目录。
+ * Moves SharedPreferences left by the old module out of the LSPosed preference directory.
  *
- * <p>1.6.8 及更早声明了 {@code xposedminversion=93}，LSPosed 把这个应用的
- * {@code getPreferencesDir()} 指到 {@code /data/misc/<id>/prefs/<package>}。
- * libxposed API 102 不再重定向，同名偏好打开的是数据目录里空的 {@code shared_prefs}。
- * 任何代码打开偏好之前，每个旧文件复制一次。{@code shared_prefs} 里已经有的文件保持原样。</p>
+ * <p>Through 1.6.8 the module declared {@code xposedminversion=93}, so LSPosed pointed
+ * {@code getPreferencesDir()} at {@code /data/misc/&lt;id&gt;/prefs/&lt;package&gt;}.
+ * A libxposed API 102 module is not redirected, so the same names open an empty
+ * {@code shared_prefs} in the data directory. Each old file is copied once, before
+ * anything opens a preference. A file already in {@code shared_prefs} stays as it is.</p>
  */
 public final class LegacyPrefsMigration {
     private static final String TAG = "OplusBandBridge";

@@ -6,7 +6,7 @@ import android.content.pm.PackageManager;
 import android.os.Binder;
 import android.os.Process;
 
-/** 宿主只认包名。系统升级会轮换签名，写死证书会让注入整段失效。 */
+/** The host is identified by package name. A system update rotates the signing cert, so a pinned cert would drop the hooks. */
 public final class HostIdentity {
     public static final String MI_PACKAGE = "com.mi.health";
     public static final String HEALTH_PACKAGE = "com.heytap.health";
@@ -28,7 +28,7 @@ public final class HostIdentity {
         }
     }
 
-    /** 这个 UID 拥有 {@code packageName}。共享 UID 下面可以挂多个包。 */
+    /** This UID owns {@code packageName}. A shared UID can list more than one package. */
     public static boolean uidHas(Context context, int uid, String packageName) {
         if (context == null || packageName == null) return false;
         String[] packages = context.getPackageManager().getPackagesForUid(uid);

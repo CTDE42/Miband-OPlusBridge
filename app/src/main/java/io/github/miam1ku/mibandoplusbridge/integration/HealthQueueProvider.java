@@ -15,7 +15,7 @@ import io.github.miam1ku.mibandoplusbridge.protocol.BandHistoryParser.Measuremen
 import io.github.miam1ku.mibandoplusbridge.data.HealthRecordStore;
 import org.json.JSONObject;
 
-/** 凭据加密存储里的待写队列。调用方按包名核对，只能读已经确认过的那个账号的记录。 */
+/** Pending writes in credential-encrypted storage. Callers are checked by package name and read only the confirmed account. */
 public final class HealthQueueProvider extends ContentProvider {
     public static final String AUTHORITY = "io.github.miam1ku.mibandoplusbridge.health";
     public static final Uri URI = Uri.parse("content://" + AUTHORITY + "/pending");
@@ -120,7 +120,7 @@ public final class HealthQueueProvider extends ContentProvider {
                 String account = extras.getString("account");
                 proposedFingerprint = HealthRecordStore.hashAccount(account);
                 proposedAtMs = SystemClock.elapsedRealtime();
-                store.authorizedAccount(account); // 健康递过来的账号成为后续写入的目标。
+                store.authorizedAccount(account); // The account Health presented becomes the write target. 
                 notifyRecordsChanged();
                 return status("ACCOUNT_PROPOSED");
             }

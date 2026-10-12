@@ -14,12 +14,13 @@ import org.json.JSONObject;
 import org.xmlpull.v1.XmlPullParser;
 
 /**
- * 接管状态写在 no_backup 的 json 里。
+ * Ownership state lives in a json file under no_backup.
  *
- * <p>libxposed API 102 不再把 {@link Context#getSharedPreferences} 指到
- * {@code /data/misc/apexdata}。1.6.8 及更早的模块会，旧的 OFFICIAL 副本还在那个目录。
- * 这份 json 还没有内容时，从应用数据目录的 {@code shared_prefs} 导入一次。
- * {@code RawFitnessFileStore} 仍直接打开 {@code oplusband-history}，那份步数标记已经写在用户的 SharedPreferences 里。</p>
+ * <p>libxposed API 102 does not point {@link Context#getSharedPreferences} at
+ * {@code /data/misc/apexdata}. Modules through 1.6.8 did, and the old OFFICIAL copy is still there.
+ * An empty json file is imported once from {@code shared_prefs} in the app data directory.
+ * {@code RawFitnessFileStore} still opens {@code oplusband-history} directly, because that step-metric
+ * flag is already in the user's SharedPreferences.</p>
  */
 public final class LocalPrefs {
     private final File file;
@@ -87,7 +88,7 @@ public final class LocalPrefs {
         return current.length() == 0;
     }
 
-    /** present 表示磁盘上已经有一份非空文件。解析失败时保留这份文件，打开路径不再拿旧的 SharedPreferences 盖掉它。 */
+    /** Present means a non-empty file is already on disk. A parse failure leaves that file in place, so open does not cover it with the old SharedPreferences. */
     static final class Stored {
         final JSONObject json;
         final boolean present;
@@ -132,7 +133,7 @@ public final class LocalPrefs {
         try {
             android.util.Log.w("OplusBandBridge", line, failed);
         } catch (RuntimeException unavailable) {
-            // 单元测试里 android.util.Log 是空实现。
+            // Unit tests run without a working android.util.Log. 
         }
     }
 

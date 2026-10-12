@@ -146,8 +146,9 @@ public final class ClockAlarmHook {
     }
 
     /**
-     * 闹钟类还留着 {@code getAlarmId} 时用它。混淆构建把 id 印在 {@code toString} 的 {@code mId=} 里。
-     * 短名 {@code p()} 和字段 {@code mId} 随宿主构建换成别的成员，直接读会拿到另一只闹钟。
+     * Uses {@code getAlarmId} while the clock class still has it. An obfuscated build prints the id
+     * in {@code toString} as {@code mId=}. The short name {@code p()} and the field {@code mId}
+     * change with the host build, so reading them returns a different alarm.
      */
     private static Integer alarmId(Object schedule, String text) {
         try {

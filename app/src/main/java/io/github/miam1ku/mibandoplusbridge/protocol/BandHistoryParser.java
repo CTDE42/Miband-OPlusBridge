@@ -820,8 +820,9 @@ public final class BandHistoryParser {
     }
 
     /**
-     * 手环的被动总步数算 {@code zone} 里的今天，已保存的更大值留着。
-     * 时区由调用方传入。方法里取系统默认时区时，同一毫秒在 UTC 和上海会落到不同的日期。
+     * The band's passive step total is today in {@code zone}. A larger saved day stays.
+     * The caller passes the zone. The system default would put the same millisecond on a different
+     * date in UTC than in Shanghai.
      */
     public static List<StepDay> preferLiveTotal(List<StepDay> days, long steps, long atMs,
             java.time.ZoneId zone) {

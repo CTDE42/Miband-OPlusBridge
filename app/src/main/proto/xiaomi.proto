@@ -1027,7 +1027,7 @@ message Schedule {
   // 17, 17
   optional Reminder editReminder = 15;
 
-  // 17, 16 来电闹钟的响铃、关闭、贪睡。操作码在 PhoneAlarmOperation.op_code。
+  // 17, 16 phone-alarm alert, dismiss, and snooze. The opcode lives on PhoneAlarmOperation.op_code. 
   optional PhoneAlarmOperation phone_alarm_operation = 16;
 
   // 17, 18
@@ -1041,7 +1041,7 @@ message PhoneAlarmTarget {
 }
 
 message PhoneAlarmOperation {
-  optional uint32 op_code = 1; // 0 响铃，1 关闭，2 贪睡。用 uint32，未知操作码仍留在消息里。
+  optional uint32 op_code = 1; // 0 alert, 1 dismiss, 2 snooze. uint32 keeps an unknown opcode in the message.
   optional PhoneAlarmTarget phone_alarm = 2;
 }
 

@@ -24,13 +24,14 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import org.json.JSONObject;
 
 /**
- * 把桥接登记进「设备空间」。
+ * Registers the bridge in 「设备空间」(device space).
  *
- * <p>ColorOS 16 的 MyDevices 17.4 把伴侣表和观察者收成 R8 短名（{@code n}/{@code j}/{@code c}/{@code aa.Nw}）。
- * ColorOS 17 的 MyDevices 17.25 改回稳定接口：{@code getSupportDeviceApplications}、
- * {@code addDeviceObserver(String, IDeviceAppObserver)}、{@code onDeviceAdd}/{@code onDeviceRemoved}/{@code onDeviceUpdated}。
- * 两边类名 {@code DeviceAppConfigManager}、{@code AppAgentManager}、{@code DeviceApp} 没变。
- * 注入点按这些特征在运行时解析，不写死某一版的混淆名。
+ * <p>ColorOS 16 MyDevices 17.4 shrinks the companion table and observer to R8 short names
+ * ({@code n}/{@code j}/{@code c}/{@code aa.Nw}). ColorOS 17 MyDevices 17.25 restored the stable
+ * names {@code getSupportDeviceApplications}, {@code addDeviceObserver(String, IDeviceAppObserver)},
+ * and {@code onDeviceAdd}/{@code onDeviceRemoved}/{@code onDeviceUpdated}.
+ * {@code DeviceAppConfigManager}, {@code AppAgentManager}, and {@code DeviceApp} kept their names.
+ * The injection point is resolved from those shapes at runtime, so one build's obfuscated name is not pinned.
  */
 public final class MyDevicesHook {
     private static final String PACKAGE = "io.github.miam1ku.mibandoplusbridge";
@@ -53,7 +54,7 @@ public final class MyDevicesHook {
         if (!"com.heytap.mydevices".equals(process)) return;
         Class<?> deviceApp = Class.forName("com.oplus.mydevices.domain.entities.config.DeviceApp", false, hostLoader);
         Class<?> deletion = Class.forName("com.oplus.mydevices.domain.entities.config.DelDeviceMethod", false, hostLoader);
-        // 最低版本和最低系统都写 0：17.4 用已安装 versionCode 与 ColorOS 版本过滤，写死 36 会在大版本上被丢掉。
+        // Min app and OS versions stay 0. Build 17.4 filters on the installed versionCode and ColorOS version, so a pinned 36 drops the card on a newer OS.
         Object app = deviceApp.getConstructor(String.class, String.class, long.class,
                         int.class, boolean.class, boolean.class, Boolean.class, deletion)
                 .newInstance("小米手环桥接", PACKAGE, 0L, 0,
@@ -72,7 +73,7 @@ public final class MyDevicesHook {
         XC_MethodHook include = new XC_MethodHook() {
             @Override protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 if (param.hasThrowable() || !(param.getResult() instanceof List<?> original)) return;
-                // f() 声明返回 CopyOnWriteArrayList。换成 ArrayList 会让 queryAppConfig 整段失败，设备空间一张卡都没有。
+                // f() is declared to return CopyOnWriteArrayList. An ArrayList makes queryAppConfig fail, and device space then shows no cards.
                 boolean cache = original instanceof CopyOnWriteArrayList<?>;
                 if (!cache && (original.isEmpty() || !deviceApp.isInstance(original.get(0)))) return;
                 List<Object> copy = cache ? new CopyOnWriteArrayList<>() : new ArrayList<>(original.size() + 1);
@@ -87,7 +88,7 @@ public final class MyDevicesHook {
         };
         XposedBridge.hookMethod(cache, include);
         if (support != null && !support.equals(cache)) XposedBridge.hookMethod(support, include);
-        // 成员判断只看这张伴侣表。16 上是两个 (String)boolean，17 上是 isSupport / isSupportDetailPanel。
+        // Membership is decided from this companion table. ColorOS 16 has two (String)boolean methods; 17 names them isSupport and isSupportDetailPanel.
         for (Method method : manager.getDeclaredMethods()) {
             if (Modifier.isStatic(method.getModifiers()) || method.getReturnType() != boolean.class) continue;
             Class<?>[] params = method.getParameterTypes();
@@ -123,7 +124,7 @@ public final class MyDevicesHook {
                 + " observer=" + observerType.getName());
     }
 
-    /** 设备空间读到的就是这份缓存。16 的方法名是 {@code j}，17 是 {@code f}，返回类型没变。 */
+    /** Device space reads this cache. The method is {@code j} on 16 and {@code f} on 17; the return type stayed. */
     private static Method cacheList(Class<?> manager) {
         Method found = null;
         for (Method method : manager.getDeclaredMethods()) {
@@ -136,7 +137,7 @@ public final class MyDevicesHook {
         return found;
     }
 
-    /** 17 用稳定名。16 只有一个 {@code (String, 接口)} 的注册方法，第二参就是观察者。 */
+    /** 17 uses the stable name. 16 has one {@code (String, interface)} register method, and the second argument is the observer. */
     private static Method registerMethod(Class<?> agent) throws NoSuchMethodException {
         for (Method method : agent.getDeclaredMethods()) {
             if ("addDeviceObserver".equals(method.getName()) && method.getParameterCount() == 2
@@ -157,8 +158,8 @@ public final class MyDevicesHook {
     }
 
     /**
-     * 17 的方法名是 {@code removeDeviceObserver}。16 上注销是唯一的非 final {@code (String)void}
-     * （{@code d}）；同签名的 {@code n} 是 final，不做注销。
+     * 17 names this {@code removeDeviceObserver}. On 16 the unregister method is the only non-final
+     * {@code (String)void} ({@code d}). {@code n} has the same signature and is final, so it is not the unregister.
      */
     private static Method unregisterMethod(Class<?> agent) throws NoSuchMethodException {
         Method named = method(agent, "removeDeviceObserver", String.class);
@@ -190,7 +191,7 @@ public final class MyDevicesHook {
         throw new NoSuchMethodException("DEVICE_CARD_CALLBACK_MISSING");
     }
 
-    /** 添加和更新都是 {@code (String)void}。17 有方法名；16 按声明序 {@code b} 添加、{@code c} 更新。 */
+    /** Add and update are both {@code (String)void}. 17 names them. 16 declares {@code b} as add and {@code c} as update. */
     private static Method singleStringCallback(Class<?> observer, String stableName, boolean add) throws NoSuchMethodException {
         Method named = method(observer, stableName, String.class);
         if (named != null) return named;
@@ -220,8 +221,8 @@ public final class MyDevicesHook {
 
 
     /**
-     * 控制中心的点击最终都是一次 {@code startActivity}。只认详情动作和手环设备号，
-     * 把意图改到健康里注册了该动作的面板，不挂钩某一版的混淆类。
+     * A control-center tap ends in {@code startActivity}. The redirect matches the detail action and the band id,
+     * then points the intent at the Health panel registered for that action, so one build's obfuscated class is not pinned.
      */
     private static void hookDetailJump(Context context) {
         XposedBridge.hookAllMethods(Instrumentation.class, "execStartActivity", new XC_MethodHook() {
@@ -237,8 +238,9 @@ public final class MyDevicesHook {
     }
 
     /**
-     * 设备中心按「提供这台设备的包名」找图标插件。桥接包没有插件，就落到默认手机图。
-     * 查到的是这只手环时，改用健康的包名，这样用到的是健康已经登记的那套图。
+     * Device center looks up the icon plugin by the package that provides the device.
+     * The bridge package has no plugin, so the lookup falls through to the default phone picture.
+     * When the row is this band, the package becomes Health's, and the icons Health already registered are used.
      */
     private static void hookIconPackage(ClassLoader loader) {
         Class<?> type;
@@ -288,8 +290,9 @@ public final class MyDevicesHook {
     }
 
     /**
-     * 设备中心的占位图方法签名是 {@code (String, DeviceType, Integer) -> int}，类名会随版本变。
-     * 插件没登记时它返回 {@code icon_default_device}。手环用 {@code default_wristband}，手表形态用 {@code default_watch}。
+     * The placeholder method is {@code (String, DeviceType, Integer) -> int}. The class name changes by version.
+     * With no plugin registered it returns {@code icon_default_device}. A band uses {@code default_wristband};
+     * a watch shape uses {@code default_watch}.
      */
     private static void hookPlaceholderIcon(Context context, ClassLoader loader) {
         Class<?> deviceType;

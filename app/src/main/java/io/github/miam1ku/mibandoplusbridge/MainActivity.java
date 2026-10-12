@@ -91,7 +91,7 @@ public final class MainActivity extends AppCompatActivity {
     private static final String SETUP_PREREQ = "开始前：系统蓝牙配对；LSPosed 启用本模块并勾选小米运动健康、OHealth、我的设备后强停一次；在 KernelSU 中允许本应用。";
     enum Change { ADD, RECONNECT, REMOVE, RESTORE }
 
-    /** 采集窗口跟着恢复结果走：这次任务把官方管理恢复成功，用户才是从采集入口进来的。 */
+    /** Open the profile window when this restore task succeeded and the user came in from the capture entry. */
     static boolean openProfileAfterRestore(Change change, boolean restored) {
         return restored && change == Change.RESTORE;
     }

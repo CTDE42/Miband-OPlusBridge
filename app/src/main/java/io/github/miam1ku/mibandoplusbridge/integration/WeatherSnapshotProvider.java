@@ -15,7 +15,7 @@ import io.github.miam1ku.mibandoplusbridge.HostIdentity;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-/** 天气交给健康的交接口。调用方按包名核对。位置留在这个 provider 里，设备空间卡片拿不到。 */
+/** Weather handoff for Health. Callers are checked by package name. The location stays in this provider, so a device-space card cannot read it. */
 public final class WeatherSnapshotProvider extends ContentProvider {
     public static final Uri URI = Uri.parse("content://io.github.miam1ku.mibandoplusbridge.weather/request");
     public static final Uri UPDATED = Uri.parse("content://io.github.miam1ku.mibandoplusbridge.weather/snapshot");
