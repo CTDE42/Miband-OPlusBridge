@@ -1279,9 +1279,21 @@ public final class OHealthDeviceHook {
             new java.util.concurrent.ConcurrentHashMap<>();
     private static final java.util.concurrent.ExecutorService ALLOWLIST =
             HookRuntime.worker("OplusBandAllowlist", 0);
+    /**
+     * 策略推送原先排在 ALLOWLIST 上，并用 {@code Thread.sleep} 等 0.5 到 5 秒。
+     * 通知转发和白名单查询也走那条线程，所以一次防抖会把通知挡住同样久。
+     * 延迟放到这条单独的调度线程上，ALLOWLIST 只跑转发和白名单查询。
+     */
+    private static final java.util.concurrent.ScheduledExecutorService POLICY = policyScheduler();
     private static final Map<String, Boolean> FORWARDED_EVENTS = new java.util.LinkedHashMap<>();
     private static final java.util.concurrent.atomic.AtomicInteger policyGeneration =
             new java.util.concurrent.atomic.AtomicInteger();
+    private static final java.util.concurrent.atomic.AtomicInteger policyAttempts =
+            new java.util.concurrent.atomic.AtomicInteger();
+    private static final Object POLICY_LOCK = new Object();
+    private static java.util.concurrent.ScheduledFuture<?> policyTask;
+    /** 同一次推送失败后再试的次数。健康里的开关变更会经 schedulePolicy 把计数清零。 */
+    static final int MAX_POLICY_ATTEMPTS = 6;
 
     static boolean registeredBand() {
         Bundle shown = snapshot;
@@ -1596,21 +1608,57 @@ public final class OHealthDeviceHook {
     }
 
     private static void schedulePolicy(long delayMs) {
-        int generation = policyGeneration.incrementAndGet();
-        ALLOWLIST.execute(() -> {
-            try {
-                Thread.sleep(Math.max(0, delayMs));
-            } catch (InterruptedException interrupted) {
-                Thread.currentThread().interrupt();
-                return;
+        policyAttempts.set(0);
+        enqueuePolicy(policyGeneration.incrementAndGet(), delayMs);
+    }
+
+    /** 第 1 次 5 秒，之后翻倍，到 60 秒封顶。 */
+    static long policyRetryDelayMs(int attempt) {
+        int shift = Math.max(0, Math.min(attempt - 1, 4));
+        return Math.min(60_000L, 5_000L << shift);
+    }
+
+    private static void retryPolicy(String reason) {
+        int attempt = policyAttempts.incrementAndGet();
+        if (attempt > MAX_POLICY_ATTEMPTS) {
+            String line = "OHEALTH_POLICY_PUSH_STOPPED attempts=" + MAX_POLICY_ATTEMPTS + " reason=" + reason;
+            Log.i("OplusBandBridge", line);
+            trace(line);
+            return;
+        }
+        enqueuePolicy(policyGeneration.incrementAndGet(), policyRetryDelayMs(attempt));
+    }
+
+    private static void enqueuePolicy(int generation, long delayMs) {
+        try {
+            synchronized (POLICY_LOCK) {
+                if (policyTask != null) policyTask.cancel(false);
+                policyTask = POLICY.schedule(() -> {
+                    if (generation != policyGeneration.get()) return;
+                    pushPolicy();
+                }, Math.max(0, delayMs), java.util.concurrent.TimeUnit.MILLISECONDS);
             }
-            if (generation == policyGeneration.get()) pushPolicy();
-        });
+        } catch (java.util.concurrent.RejectedExecutionException rejected) {
+            // 热重载会 shutdown 这一代调度器，被拒绝的推送由新一代重新安装。
+        }
+    }
+
+    private static java.util.concurrent.ScheduledExecutorService policyScheduler() {
+        java.util.concurrent.ScheduledThreadPoolExecutor executor =
+                new java.util.concurrent.ScheduledThreadPoolExecutor(1, runnable -> {
+                    Thread thread = new Thread(runnable, "OplusBandPolicy");
+                    thread.setDaemon(true);
+                    return thread;
+                });
+        executor.setRemoveOnCancelPolicy(true);
+        HookRuntime.track(executor::shutdownNow);
+        return executor;
     }
 
     private static void pushPolicy() {
+        int generation = policyGeneration.get();
         if (hostContext == null) {
-            schedulePolicy(5_000);
+            if (generation == policyGeneration.get()) retryPolicy("context");
             return;
         }
         try {
@@ -1655,7 +1703,7 @@ public final class OHealthDeviceHook {
             if (detail.length() > 180) detail = detail.substring(0, 180);
             Log.i("OplusBandBridge", "OHEALTH_POLICY_PUSH_FAILED " + detail);
             trace("OHEALTH_POLICY_PUSH_FAILED " + failure.getClass().getSimpleName());
-            schedulePolicy(5_000);
+            if (generation == policyGeneration.get()) retryPolicy(failure.getClass().getSimpleName());
         }
     }
 
