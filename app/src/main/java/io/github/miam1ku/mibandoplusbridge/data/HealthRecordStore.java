@@ -281,7 +281,7 @@ public final class HealthRecordStore extends SQLiteOpenHelper {
         return row;
     }
 
-    /** Any real OHealth account becomes the write target. A blank or tourist id does not pause collection. */
+    /** Any real OHealth account becomes the write target. A blank or tourist id leaves collection running. */
     public synchronized boolean authorizedAccount(String account) {
         if (account == null || account.isBlank() || account.length() > 512 || "com.heytap.health".equals(account)) {
             return false;
@@ -454,7 +454,7 @@ public final class HealthRecordStore extends SQLiteOpenHelper {
             row.put("device_id", deviceId);
             row.put("firmware", firmware);
             row.put("captured_at_ms", capturedAtMs);
-            // Unsent files are claimed by the next real account. Do not wait out a paused binding.
+            // Unsent files are claimed by the next real account. A paused binding keeps its queue.
             try (Cursor binding = db.rawQuery("SELECT account_hash FROM binding WHERE id=1", null)) {
                 row.put("account_hash", binding.moveToFirst() ? binding.getString(0) : null);
             }
@@ -468,7 +468,7 @@ public final class HealthRecordStore extends SQLiteOpenHelper {
         }
     }
 
-    /** A rejected file gained a parser. Does not rewind a cursor that already moved. */
+    /** A rejected file gained a parser. The cursor stays where it already moved. */
     synchronized boolean promoteRejectedFile(String hash, int recordCount) {
         requireHash(hash);
         if (recordCount < 1) return false;

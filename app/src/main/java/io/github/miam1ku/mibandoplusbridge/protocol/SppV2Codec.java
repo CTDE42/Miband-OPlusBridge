@@ -84,7 +84,7 @@ public final class SppV2Codec {
         return bytes;
     }
 
-    /** A malformed frame poisons this stream until reset; it is never skipped or resynchronized. */
+    /** A malformed frame poisons this stream until reset. Recovery is a new session, not a skip inside the stream. */
     public static final class Decoder {
         private final int maxPayloadLength;
         private byte[] pending = new byte[HEADER_LENGTH];

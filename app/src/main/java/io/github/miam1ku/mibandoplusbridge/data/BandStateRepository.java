@@ -33,7 +33,7 @@ public final class BandStateRepository {
 
     public boolean isRegistered() {
         synchronized (STATE_LOCK) {
-            // Do not open credential-encrypted preferences or decrypt bindings before unlock.
+            // Credential-encrypted preferences and binding decryption wait until the user is unlocked.
             return isUnlocked() && state().getBoolean("registered", false);
         }
     }
@@ -211,7 +211,7 @@ public final class BandStateRepository {
         }
     }
 
-    /** Band-scoped activity only. This never writes OHealth's shared daily statistics. */
+    /** Activity rows stay on this band. OHealth's shared daily statistics are written by the health hooks. */
     public void recordSport(long stepsToday, int heartRate, long measuredAtMs) {
         synchronized (STATE_LOCK) {
             if (!isUnlocked()) return;
@@ -233,7 +233,7 @@ public final class BandStateRepository {
             context.getContentResolver().notifyChange(DeviceCardProvider.URI, null);
         }
     }
-    /** A daily report replaces the total. Minute sums never lower the same local day. */
+    /** A daily report replaces the total. Minute sums on the same local day only move the total up. */
     public void recordDailySteps(long stepsToday, long measuredAtMs, boolean authoritative) {
         synchronized (STATE_LOCK) {
             if (!isUnlocked()) return;

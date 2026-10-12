@@ -10,7 +10,7 @@ public final class BindingShape {
 
     /**
      * Null when the binding can be registered.
-     * V2 auth sends region and the 16-byte key. It does not send userId.
+     * V2 auth sends region and the 16-byte key. userId stays off that packet.
      */
     public static String reject(JSONObject binding) {
         if (binding == null) return "UNPROVISIONED";
@@ -20,7 +20,7 @@ public final class BindingShape {
         return null;
     }
 
-    /** Field classes only. Never the address, user id, region text, or token. */
+    /** Field classes only. The address, user id, region text, and token stay out of this description. */
     public static String describe(JSONObject binding) {
         if (binding == null) return "binding=absent";
         return "address=" + (mac(binding.optString("address", "")) ? "ok" : "bad")

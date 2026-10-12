@@ -29,7 +29,7 @@ import java.util.Set;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ScheduledExecutorService;
 import nodomain.freeyourgadget.gadgetbridge.proto.xiaomi.XiaomiProto;
-/** Runs on the service's serial coordinator; never acquires its own transport. */
+/** Runs on the service's serial coordinator. The live session owns the transport. */
 public final class PhoneCallMonitor implements AutoCloseable {
     private final Context context;
     private final BandStateRepository repository;
@@ -110,7 +110,7 @@ public final class PhoneCallMonitor implements AutoCloseable {
         });
     }
 
-    /** Content-free status; a submission or transport failure never appears as delivered. */
+    /** Status carries no call content. Delivered means the band accepted the packet. */
     public String lastFailureCode() {
         if (monitorFailure != null) return monitorFailure;
         return gate.lastFailure() == null ? null : "CALL_SUBMISSION_FAILED";
@@ -310,7 +310,7 @@ public final class PhoneCallMonitor implements AutoCloseable {
                 listener.manager.registerTelephonyCallback(TelephonyManager.INCLUDE_LOCATION_DATA_NONE,
                         coordinator, listener);
             }
-            // Unlike getCallState(), this query belongs to this exact SIM. Do not query inside callbacks.
+            // Unlike getCallState(), this query belongs to this exact SIM. Call it from the coordinator, outside callbacks.
             Map<Integer, PhoneCallGate.State> current = new HashMap<>();
             for (CallListener listener : listeners.values()) {
                 current.put(listener.id, stateOf(listener.manager.getCallStateForSubscription()));

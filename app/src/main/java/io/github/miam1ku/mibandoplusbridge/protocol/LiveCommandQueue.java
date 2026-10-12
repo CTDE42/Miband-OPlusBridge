@@ -138,7 +138,7 @@ public final class LiveCommandQueue implements AutoCloseable {
             }
             Kind kind = classify(command);
             if (kind == Kind.CALL) {
-                // A single latest-state slot; never cancel a call packet already handed to Sender.
+                // One latest-state slot. A call packet already handed to Sender finishes on its own.
                 for (int index = work.size() - 1; index >= 0; index--) {
                     Work item = work.get(index);
                     if (item.kind == Kind.CALL && item.sequence < 0) {
@@ -308,7 +308,7 @@ public final class LiveCommandQueue implements AutoCloseable {
             nextSequence = (sequence + 1) & 255;
             return sequence;
         }
-        // The peer expects contiguous eight-bit sequence numbers; never skip a quarantined ID.
+        // The peer expects contiguous eight-bit sequence numbers. A quarantined id stays in the sequence.
         if (sequenceWake == null) {
             sequenceWake = worker.schedule(() -> {
                 synchronized (lock) {
@@ -335,7 +335,7 @@ public final class LiveCommandQueue implements AutoCloseable {
             pending[item.sequence] = null;
             retiredUntil[item.sequence] = System.nanoTime() + quarantineNanos;
         }
-        // Never execute user continuation code under lock, on the reader, or on the writer.
+        // User continuation runs after the lock, off the reader and the writer.
         ForkJoinPool.commonPool().execute(() -> {
             if (error == null) item.result.complete(response);
             else item.result.completeExceptionally(error);

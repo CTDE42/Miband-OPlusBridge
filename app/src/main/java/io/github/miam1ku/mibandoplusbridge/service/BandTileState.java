@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.miam1ku.mibandoplusbridge.service;
 
-/** Quick settings labels. Adding the tile wakes the bridge; it never disconnects. */
+/** Quick settings labels. Adding the tile wakes the bridge and leaves the link up. */
 public final class BandTileState {
     static final int UNAVAILABLE = 0; // Tile.STATE_UNAVAILABLE
     static final int INACTIVE = 1;    // Tile.STATE_INACTIVE

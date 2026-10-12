@@ -37,7 +37,7 @@ import org.bouncycastle.crypto.modes.CCMModeCipher;
 import org.bouncycastle.crypto.params.AEADParameters;
 import org.bouncycastle.crypto.params.KeyParameter;
 
-/** WearAuthV2 cryptography for the non-OOB branch. Does not parse protobuf or confirm device readiness. */
+/** WearAuthV2 cryptography for the non-OOB branch. Protobuf parsing and device readiness stay with the caller. */
 public final class XiaomiSessionCrypto {
     private static final byte[] AUTH_INFO = "miwear-auth".getBytes(StandardCharsets.US_ASCII);
 
@@ -217,7 +217,7 @@ public final class XiaomiSessionCrypto {
             return ctrCrypt(Cipher.ENCRYPT_MODE, phoneKey, phoneKey, plaintext);
         }
 
-        /** SPP V2 uses the watch key as the IV. CTR does not authenticate the ciphertext. */
+        /** SPP V2 uses the watch key as the IV. CTR leaves the ciphertext unauthenticated. */
         public synchronized byte[] decryptV2(byte[] ciphertext) {
             requireState(State.ACTIVE);
             Objects.requireNonNull(ciphertext, "ciphertext");
@@ -254,7 +254,7 @@ public final class XiaomiSessionCrypto {
             }
         }
 
-        /** Clears arrays owned by this session. Does not clear caller-owned inputs or returned arrays. */
+        /** Clears arrays owned by this session. Caller-owned inputs and returned arrays stay with the caller. */
         @Override public synchronized void close() {
             Arrays.fill(watchKey, (byte) 0);
             Arrays.fill(phoneKey, (byte) 0);

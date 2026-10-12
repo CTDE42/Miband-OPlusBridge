@@ -948,7 +948,7 @@ public final class BandLiveService extends Service {
         getSharedPreferences("live-service", MODE_PRIVATE).edit().putString("healthCollectionStatus", status).apply();
         getContentResolver().notifyChange(io.github.miam1ku.mibandoplusbridge.integration.DeviceCardProvider.URI, null);
     }
-    /** A later successful round must not keep showing a storage pause that already cleared. */
+    /** A later successful round clears a storage pause that already ended. */
     private void clearStoragePause() {
         String current = getSharedPreferences("live-service", MODE_PRIVATE)
                 .getString("healthCollectionStatus", "");

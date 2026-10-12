@@ -15,7 +15,7 @@ import io.github.miam1ku.mibandoplusbridge.ui.BridgeScreen;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** Foreground-only diagnostic surface; does not change official package state. */
+/** Foreground diagnostic page. Official package state stays with {@code OwnershipController}. */
 public final class DiagnosticActivity extends AppCompatActivity {
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private TextView status;

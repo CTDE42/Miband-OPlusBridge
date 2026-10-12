@@ -75,7 +75,7 @@ public final class HookRuntime {
         void run() throws Throwable;
     }
 
-    /** Logging never fails the hook that logs. */
+    /** A log failure stays inside the logger. The hook that called it keeps running. */
     private static void write(int priority, String line, Throwable failure) {
         try {
             Log.println(priority, TAG, failure == null ? line : line + '\n' + Log.getStackTraceString(failure));

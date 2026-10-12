@@ -37,7 +37,7 @@ public final class PhoneAlarmNotice {
         return fullScreen || service;
     }
 
-    /** A running timer or stopwatch. The band has no sync for either, so they must not ring. */
+    /** A running timer or stopwatch. The band has no packet for either, so the clock alarm stays on the phone. */
     private static boolean runningClockTool(int id, String channel) {
         if (id == TIMER_SERVICE_ID || id == TIMER_FLOATING_ID || id == STOPWATCH_SERVICE_ID) return true;
         return channel.contains("timer") || channel.contains("stopwatch");
@@ -63,7 +63,7 @@ public final class PhoneAlarmNotice {
         send(context, 1, "");
     }
 
-    /** The clock klaxon just alerted the band. Notification echoes must not replace that alarm id. */
+    /** The clock klaxon just alerted the band. Later notification echoes keep that alarm id. */
     public static void noteClockRing() {
         clockRingAt = android.os.SystemClock.elapsedRealtime();
     }

@@ -20,7 +20,7 @@ import io.github.miam1ku.mibandoplusbridge.data.BandStateRepository;
 import io.github.miam1ku.mibandoplusbridge.data.LocalPrefs;
 import io.github.miam1ku.mibandoplusbridge.integration.DeviceCardProvider;
 
-/** SystemUI binding this tile starts the bridge. A tap never stops the connection. */
+/** SystemUI binding this tile starts the bridge. A tap leaves the connection up. */
 public final class BandTileService extends TileService {
     private static final String DEVICES = "com.heytap.mydevices";
     private ContentObserver observer;

@@ -75,7 +75,7 @@ public final class MiFitnessImportHook {
                     });
                     dispatched = true;
                 } catch (Throwable incompatible) {
-                    // Do not log exception objects: their messages can contain host credentials.
+                    // Log the exception class. The message can carry host credentials.
                     HookRuntime.log("OplusBandBridge: IMPORT_CAPTURE_FAILED");
                 } finally {
                     if (!dispatched) pending.set(false);

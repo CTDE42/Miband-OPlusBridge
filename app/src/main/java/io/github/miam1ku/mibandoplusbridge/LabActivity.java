@@ -26,7 +26,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** Foreground-only protocol tests. Does not log MAC, token, or health values. */
+/** Foreground protocol tests. The log keeps protocol fields; MAC, token, and health values stay in memory. */
 public final class LabActivity extends AppCompatActivity {
     private static final DateTimeFormatter TIME =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());

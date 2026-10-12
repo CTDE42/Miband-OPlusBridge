@@ -44,7 +44,7 @@ public final class PhoneCallGate {
         }
     }
 
-    /** A fresh snapshot is mandatory: never reuse the previous session's call states. */
+    /** Each session starts from a fresh snapshot. The previous session's call states stay behind. */
     public synchronized void connected(Map<Integer, State> currentStates) {
         revision++;
         connected = true;
@@ -82,7 +82,7 @@ public final class PhoneCallGate {
         reconcile();
     }
 
-    /** OFFHOOK does not change when the remote side answers. The in-call notification does. */
+    /** OFFHOOK stays the same when the remote side answers. The in-call notification is what changes. */
     public synchronized boolean markAnswered() {
         if (!enabled) return false;
         boolean changed = false;

@@ -20,7 +20,7 @@ final class LiveHistorySync {
     private final java.util.function.BooleanSupplier capacity;
     private final ArrayDeque<byte[]> remaining = new ArrayDeque<>();
     private final Set<String> pending = new HashSet<>();
-    /** File ids already stored this session. The band keeps listing them; do not download again. */
+    /** File ids already stored this session. The band keeps listing them; the next pass skips the download. */
     private final Set<String> stored = new HashSet<>();
     private boolean busy;
     private boolean includeHistory;

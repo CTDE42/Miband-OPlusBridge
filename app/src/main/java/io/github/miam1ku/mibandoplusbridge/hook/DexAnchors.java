@@ -162,7 +162,7 @@ final class DexAnchors {
                     }
                 }
             } catch (RuntimeException skipped) {
-                // A damaged class_data item must not hide anchors in later classes.
+                // A damaged class_data item stops at that class. Later classes still yield their anchors.
             }
         }
     }

@@ -144,7 +144,7 @@ final class HealthReplay implements AutoCloseable {
         status.accept("HEALTH_LOCAL_RECORDS_READY");
     }
 
-    /** Newest file that still has stages owns the interval. Older files must not delete it. */
+    /** The newest file that still has stages owns the interval. Older files leave that interval in place. */
     private void alignStoredSleep(String identity) throws Exception {
         if (sleepStagesAligned || closed) return;
         boolean added = false;

@@ -20,7 +20,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-/** Records SPP metadata during the setup import/profile window. Never key or payload bytes. */
+/** Records SPP metadata during the setup import and profile window. Keys and payload bytes stay out of the record. */
 public final class TransportProbeHook {
     private TransportProbeHook() {}
 
@@ -59,7 +59,7 @@ public final class TransportProbeHook {
                 metadata.putString("authImplementation", "WearAuthV2");
                 metadata.putBoolean("authFlagObserved", (Boolean) param.args[4]);
                 metadata.putInt("authCtorVersion", (Integer) param.args[6]);
-                // Record optional-credential presence, never their values or the binding key.
+                // Record whether optional credentials are present. Their values and the binding key stay out of the record.
                 metadata.putBoolean("authAppDeviceIdPresent", param.args[2] != null && !((String) param.args[2]).isEmpty());
                 metadata.putBoolean("authOobPresent", param.args[3] != null && !((String) param.args[3]).isEmpty());
                 observe(context, writer, param.args[5], metadata);

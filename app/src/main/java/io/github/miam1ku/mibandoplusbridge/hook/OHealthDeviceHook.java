@@ -276,7 +276,7 @@ public final class OHealthDeviceHook {
     private static Bundle fromProvider() {
         try {
             Bundle result = hostContext.getContentResolver().call(DeviceCardProvider.URI, "bandDisplay", null, null);
-            // Absence/malformed IPC is unknown, never an implicit removal.
+            // A missing or malformed IPC snapshot stays unknown. Removal waits for an explicit clear.
             if (result == null || !(result.get("registered") instanceof Boolean)) return null;
             if (result.getBoolean("registered") && (result.getString("deviceId", "").isBlank()
                     || result.getString("mac", "").isBlank() || result.getString("name", "").isBlank())) return null;
@@ -458,7 +458,7 @@ public final class OHealthDeviceHook {
         } finally {
             XposedHelpers.callMethod(list, "readUnLock");
         }
-        // This host method removes only the local row; never invoke remote unbind.
+        // This host method removes the local row. Remote unbind stays on the official path.
         if (mac != null && !mac.isBlank()) XposedHelpers.callMethod(controller, "deleteDeviceByMac", mac);
     }
 
@@ -1085,7 +1085,7 @@ public final class OHealthDeviceHook {
         }
     }
 
-    /** Health's card for this band. The bridge card lives in another process and never reaches here. */
+    /** Health's card for this band. The bridge card lives in another process, so this lookup only sees Health's row. */
     private static boolean duplicateSpaceCard(Object info) {
         Bundle shown = liveSnapshot();
         if (shown == null || info == null || !shown.getBoolean("registered", false)) return false;
@@ -1249,7 +1249,7 @@ public final class OHealthDeviceHook {
                     forwardHostNotification(param.args[0], true);
                 }
             });
-            // Forward before skipping. Swallowing this call never reaches the register center.
+            // Forward before skipping. Once this call is swallowed, the register center does not see the post.
             String manager = "com.heytap.health.watch.notification.impl.transceiver.NotificationEventManager";
             XposedHelpers.findAndHookMethod(manager, loader, "onNotificationPosted", bean, new XC_MethodHook() {
                 @Override protected void beforeHookedMethod(MethodHookParam param) {
@@ -1542,7 +1542,7 @@ public final class OHealthDeviceHook {
         return false;
     }
 
-    /** Health switch {@code screen_on_push} false means do not push while the screen is on. */
+    /** Health switch {@code screen_on_push} false holds the push while the screen is on. */
     private static boolean screenOnBlocks(Object bean) {
         try {
             ClassLoader loader = bean.getClass().getClassLoader();

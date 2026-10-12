@@ -8,7 +8,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 
-/** Reads GitHub Releases. Does not download or install APKs. */
+/** Reads the GitHub Releases listing. The user installs the APK from the release page. */
 public final class UpdateChecker {
     public static final String OWNER_REPO = "MiaM1ku/Miband-OPlusBridge";
     public static final String PAGE = "https://github.com/" + OWNER_REPO + "/releases/latest";

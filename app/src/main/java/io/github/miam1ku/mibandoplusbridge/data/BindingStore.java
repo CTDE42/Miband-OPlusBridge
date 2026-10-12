@@ -103,7 +103,7 @@ public final class BindingStore {
             File source = file.getBaseFile();
             publicIdentity = new IdentitySnapshot(source.getAbsolutePath(), source.lastModified(), source.length(), identity);
         } catch (Exception incomplete) {
-            // Incomplete imports stay available to configuration, never to a live identity check.
+            // Incomplete imports stay available to configuration. A live identity check waits for a complete import.
         }
     }
 
@@ -117,7 +117,7 @@ public final class BindingStore {
         KeyStore store = KeyStore.getInstance("AndroidKeyStore");
         store.load(null);
         if (store.containsAlias(ALIAS)) return (SecretKey) store.getKey(ALIAS, null);
-        // Never silently replace the key for an existing ciphertext.
+        // Replacing the key for an existing ciphertext is a step the caller asks for.
         if (file.getBaseFile().exists()) throw new IllegalStateException("BINDING_KEY_UNAVAILABLE");
         KeyGenerator generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
         generator.init(new KeyGenParameterSpec.Builder(ALIAS,

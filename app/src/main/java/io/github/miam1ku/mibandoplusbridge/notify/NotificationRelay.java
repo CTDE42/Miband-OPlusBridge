@@ -99,7 +99,7 @@ public final class NotificationRelay {
         Entry entry = entries.get(event.key());
         if (entry == null) {
             if (entries.size() >= CAPACITY) { failure = "NOTIFICATION_CAPACITY"; return; }
-            // Do not reuse an ID during this process lifetime.
+            // An id stays unique for this process lifetime.
             if (nextId == Integer.MAX_VALUE) { failure = "NOTIFICATION_ID_EXHAUSTED"; return; }
             entry = new Entry(event.key(), event.packageName(), nextId++);
         }

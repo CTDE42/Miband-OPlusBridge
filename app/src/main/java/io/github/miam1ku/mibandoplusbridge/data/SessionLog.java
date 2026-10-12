@@ -9,7 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Instant;
 
-/** Local session trace. Callers must not pass tokens, MAC addresses, nonces, or ciphertext. */
+/** Local session trace. A line carries the event name. Tokens, MAC addresses, nonces, and ciphertext stay in the caller. */
 public final class SessionLog {
     static final String START_MARK = "--- module start ";
     static final int KEPT_STARTS = 3;

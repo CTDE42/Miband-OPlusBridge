@@ -4,7 +4,7 @@ package io.github.miam1ku.mibandoplusbridge.data;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Decides which sleep file owns an interval. The newest file wins; an empty analysis does not. */
+/** The newest file with an analysis owns the interval. An empty analysis leaves the interval for an older file. */
 public final class SleepStageAlign {
     private SleepStageAlign() {}
 

@@ -25,7 +25,7 @@ public final class HostKeepAlive {
         BandLiveService.ensureProcess(context);
     }
 
-    /** Binder and broadcast threads must not wait on su. */
+    /** Binder and broadcast threads return before su finishes. */
     public static void startBridgeAsync(Context context) {
         if (context == null) return;
         Context app = context.getApplicationContext();
@@ -52,7 +52,7 @@ public final class HostKeepAlive {
         });
     }
 
-    /** One su thread. Callers on a binder or the main thread must not wait. */
+    /** One su thread. Callers on a binder or the main thread return before it finishes. */
     public static void runRoot(Runnable task) {
         if (task != null) root.execute(task);
     }

@@ -12,7 +12,7 @@ public final class WeatherConditionMap {
     public static int fromOHealth(int code) {
         // OHealth 6.9.37 WeatherCodeNewEnum; Xiaomi values from the pinned
         // Gadgetbridge XiaomiWeatherConditions table and observed Band 11 frames.
-        // Unsupported categories must not masquerade as clear skies.
+        // An unsupported category stays unmapped. Clear skies is only the clear category.
         return switch (code) {
             case 1, 6, 7 -> 7;
             case 2, 3, 4, 5 -> 3;

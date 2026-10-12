@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.json.JSONObject;
 
-/** Weather transactions on the service's single-thread coordinator; never owns a socket. */
+/** Weather transactions run on the service's single-thread coordinator. The live session owns the socket. */
 public final class WeatherSync implements AutoCloseable {
     public static final class Failure extends IllegalStateException {
         public final String code;

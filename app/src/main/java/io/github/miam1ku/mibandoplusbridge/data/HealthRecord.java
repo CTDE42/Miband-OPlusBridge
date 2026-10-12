@@ -8,7 +8,7 @@ import java.util.Set;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-/** A normalized measurement; source identifiers and values never enter diagnostic logs. */
+/** A normalized measurement. Diagnostic logs carry the kind and the time, and leave source ids and values in the record. */
 public final class HealthRecord {
     private static final Set<String> FIELDS = Set.of("recordId", "deviceId", "kind", "startMs",
             "endMs", "value", "stage", "revision", "timezone", "measurementMode", "complete",
@@ -26,9 +26,9 @@ public final class HealthRecord {
     public final String timezone;
     public final String measurementMode;
     public final boolean complete;
-    /** Activity kilocalories. Null when this record does not carry them. */
+    /** Activity kilocalories. Null means this record has no calorie field. */
     public final Integer calories;
-    /** Meters. Null when this record does not carry distance. */
+    /** Meters. Null means this record has no distance field. */
     public final Integer distance;
     /** Stand-hours in the daily report. Null except on a parsed steps_day. */
     public final Integer moveAbout;
