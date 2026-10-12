@@ -97,6 +97,44 @@ public final class TransportObservation {
         return versionMajor < 2;
     }
 
+    /**
+     * A connection profile supplied by hand when no official-app capture is possible, e.g. the
+     * international Mi Fitness app. Same schema and store as a hook capture, so every consumer
+     * ({@link #supportsLive}, {@link #missingForLive}, the live session) stays unchanged.
+     * GATT framing is fixed at 1; SPP framing follows the app version like a real capture.
+     */
+    public static JSONObject manualProfile(String model, String branch) throws org.json.JSONException {
+        if (model == null || model.isBlank()) throw new IllegalArgumentException("BINDING_MODEL_REQUIRED");
+        JSONObject observation = new JSONObject();
+        observation.put("model", model);
+        switch (branch == null ? "" : branch) {
+            case "GATT" -> observation.put("transport", "GATT");
+            case "SPP1" -> {
+                observation.put("transport", "SPP");
+                observation.put("versionName", "1.0.0");
+                observation.put("rfcommUuid", SERVICE);
+                observation.put("rfcommSecure", true);
+            }
+            case "SPP2" -> {
+                observation.put("transport", "SPP");
+                observation.put("versionName", "3.0.0");
+                observation.put("rfcommUuid", SERVICE);
+                observation.put("rfcommSecure", true);
+            }
+            default -> throw new IllegalArgumentException("BINDING_PROFILE_REQUIRED");
+        }
+        // The live session only implements WearAuthV2 without OOB or appDeviceId, which is what
+        // a capturable profile must show. Capability is the value a verified capture records.
+        observation.put("officialAuthConnected", true);
+        observation.put("appCapability", APP_CAPABILITY);
+        observation.put("authImplementation", "WearAuthV2");
+        observation.put("authOobPresent", false);
+        observation.put("authAppDeviceIdPresent", false);
+        observation.put("recordedAtMs", System.currentTimeMillis());
+        observation.put("source", "manual");
+        return observation;
+    }
+
     public static String missingForLive(JSONObject binding, JSONObject observation) {
         StringBuilder missing = new StringBuilder();
         if (binding == null) return "address,model,userId,region,token";

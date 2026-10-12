@@ -12,9 +12,12 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.UserManager;
 import android.provider.Settings;
+import android.text.InputType;
 import io.github.miam1ku.mibandoplusbridge.data.BindingStore;
 import io.github.miam1ku.mibandoplusbridge.data.HealthRecordStore;
 import io.github.miam1ku.mibandoplusbridge.data.BandCatalog;
+import io.github.miam1ku.mibandoplusbridge.data.AuthToken;
+import io.github.miam1ku.mibandoplusbridge.data.BindingShape;
 import io.github.miam1ku.mibandoplusbridge.data.TransportObservation;
 import io.github.miam1ku.mibandoplusbridge.integration.DeviceCardProvider;
 import org.json.JSONObject;
@@ -26,7 +29,9 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.materialswitch.MaterialSwitch;
@@ -46,6 +51,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -220,6 +226,8 @@ public final class MainActivity extends AppCompatActivity {
             }
             startActivity(launch);
         });
+        screen.caption(advanced, "官方应用无法自动导入时（如国际版小米运动健康），可手动导入：输入手环 MAC 与 16 字节 AuthKey。数据保存方式与自动导入完全一致。");
+        screen.outlined(advanced, "手动导入绑定（AuthKey）", this::showManualImportDialog);
         if (BuildConfig.DEBUG) {
             screen.outlined(advanced, "采集连接参数（120 秒）", () -> action("openDiagnostics", null));
             screen.outlined(advanced, "采集协议消息（120 秒）", () -> new MaterialAlertDialogBuilder(this)
@@ -1015,6 +1023,117 @@ public final class MainActivity extends AppCompatActivity {
                     action("openWindow", selected);
                 })
                 .show();
+    }
+
+    private static final String[] MANUAL_MODEL_IDS = {
+            "miwear.watch.q66", "miwear.watch.q66nfc", "miwear.watch.o66", "miwear.watch.o66nfc",
+            "miwear.watch.p67", "miwear.watch.n66", "miwear.watch.n66nfc", "miwear.watch.n67",
+            "miwear.watch.m66", "lchz.watch.m67", "mijia.watch.m69b"};
+    private static final String[] MANUAL_MODEL_LABELS = {
+            "小米手环 11", "小米手环 11 NFC", "小米手环 10", "小米手环 10 NFC",
+            "小米手环 10 Pro", "小米手环 9", "小米手环 9 NFC", "小米手环 9 Pro",
+            "小米手环 8", "小米手环 8 Pro", "小米手环 8 活力版"};
+    private static final String[] MANUAL_PROFILES = {"BLE（GATT）", "SPP V2", "SPP V1（小米手环 8 Pro）"};
+
+    private void showManualImportDialog() {
+        if (!isUnlocked()) {
+            status.setText("请先解锁手机，再手动导入绑定。");
+            return;
+        }
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(LinearLayout.VERTICAL);
+        int pad = BridgeScreen.dp(this, 24);
+        form.setPadding(pad, BridgeScreen.dp(this, 8), pad, 0);
+        EditText address = manualField(form, "蓝牙地址（MAC，如 AA:BB:CC:DD:EE:FF）");
+        if (!selectedAddress.isBlank()) address.setText(selectedAddress);
+        EditText key = manualField(form, "AuthKey（32 位十六进制，或 16 字节 Base64）");
+        key.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        EditText model = manualField(form, "型号 ID（如 miwear.watch.q66 = 小米手环 11）");
+        TextView picker = manualLink(form, "从常见手环型号选择");
+        picker.setOnClickListener(view -> new MaterialAlertDialogBuilder(this)
+                .setTitle("选择型号")
+                .setItems(MANUAL_MODEL_LABELS, (dialog, which) -> model.setText(MANUAL_MODEL_IDS[which]))
+                .show());
+        EditText region = manualField(form, "账号地区（如 cn、de、us）");
+        EditText userId = manualField(form, "小米账号 ID（建议填写）");
+        EditText did = manualField(form, "设备 did（可选）");
+        EditText firmware = manualField(form, "固件版本（可选）");
+        TextView profile = manualLink(form, "连接方式：BLE（GATT）");
+        final String[] branch = {"GATT"};
+        profile.setOnClickListener(view -> new MaterialAlertDialogBuilder(this)
+                .setTitle("选择连接方式")
+                .setSingleChoiceItems(MANUAL_PROFILES, 0, (dialog, which) -> {
+                    branch[0] = which == 0 ? "GATT" : which == 1 ? "SPP2" : "SPP1";
+                    profile.setText("连接方式：" + MANUAL_PROFILES[which]);
+                    dialog.dismiss();
+                })
+                .show());
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(form);
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("手动导入绑定")
+                .setView(scroll)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("保存绑定", (dialog, which) -> submitManualImport(
+                        address.getText().toString(), key.getText().toString(),
+                        model.getText().toString(), region.getText().toString(),
+                        userId.getText().toString(), did.getText().toString(),
+                        firmware.getText().toString(), branch[0]))
+                .show();
+    }
+
+    private void submitManualImport(String address, String key, String model, String region,
+            String userId, String did, String firmware, String branch) {
+        String mac = address.trim().toUpperCase(Locale.ROOT);
+        if (!BindingShape.mac(mac)) {
+            status.setText("蓝牙地址格式不正确。请填写冒号分隔的 MAC。");
+            return;
+        }
+        String token = AuthToken.normalize(key);
+        if (!AuthToken.hex32(token)) {
+            status.setText("AuthKey 必须是 16 字节密钥：32 位十六进制，或其 Base64。");
+            return;
+        }
+        if (model.trim().isBlank()) {
+            status.setText("请填写型号 ID，或从常见型号中选择。");
+            return;
+        }
+        if (region.trim().isBlank()) {
+            status.setText("请填写账号地区。");
+            return;
+        }
+        Bundle input = new Bundle();
+        input.putString("address", mac);
+        input.putString("token", token);
+        input.putString("model", model.trim());
+        input.putString("region", region.trim());
+        if (!userId.trim().isBlank()) input.putString("userId", userId.trim());
+        if (!did.trim().isBlank()) input.putString("did", did.trim());
+        if (!firmware.trim().isBlank()) input.putString("firmware", firmware.trim());
+        input.putString("profile", branch);
+        status.setText("正在保存手动导入的绑定…");
+        action("manualImport", input);
+    }
+
+    private EditText manualField(LinearLayout parent, String hint) {
+        EditText edit = new EditText(this);
+        edit.setHint(hint);
+        edit.setSingleLine(true);
+        parent.addView(edit, new LinearLayout.LayoutParams(-1, -2));
+        return edit;
+    }
+
+    private TextView manualLink(LinearLayout parent, String text) {
+        TextView view = new TextView(this);
+        view.setText(text);
+        view.setTextSize(14);
+        view.setTypeface(null, android.graphics.Typeface.DEFAULT_BOLD);
+        view.setTextColor(MaterialColors.getColor(this,
+                com.google.android.material.R.attr.colorPrimary, 0));
+        int pad = BridgeScreen.dp(this, 4);
+        view.setPadding(pad, pad, pad, BridgeScreen.dp(this, 12));
+        parent.addView(view, new LinearLayout.LayoutParams(-1, -2));
+        return view;
     }
 
     private void startProfileCapture() {

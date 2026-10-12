@@ -6,6 +6,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public final class TransportObservationTest {
     private static JSONObject verified(String model, String versionName) throws Exception {
@@ -104,5 +105,43 @@ public final class TransportObservationTest {
                 .put("queueClass", "com.xiaomi.wearable.transport.queue.SppTaskQueueV2");
         assertFalse(TransportObservation.useV1Framing(v2, 1));
         assertTrue(TransportObservation.useV1Framing(new JSONObject(), 1));
+    }
+
+    @Test public void manualGattProfileCompletesImportLikeACapture() throws Exception {
+        JSONObject observation = TransportObservation.manualProfile("miwear.watch.o66", "GATT");
+        assertTrue(TransportObservation.supportsLive(observation, "miwear.watch.o66"));
+        JSONObject binding = new JSONObject()
+                .put("address", "AA:BB:CC:DD:EE:FF")
+                .put("model", "miwear.watch.o66")
+                .put("userId", "u")
+                .put("region", "cn")
+                .put("token", "0123456789abcdef0123456789abcdef");
+        TransportObservation.applyToBinding(binding, observation);
+        assertEquals("GATT", binding.getString("observedTransport"));
+        assertEquals("1", binding.getString("framingVersion"));
+        assertEquals("WearAuthV2", binding.getString("authenticationBranch"));
+        assertEquals("", TransportObservation.missingForLive(binding, observation));
+    }
+
+    @Test public void manualSppProfilesPickFramingByBranch() throws Exception {
+        JSONObject v2 = TransportObservation.manualProfile("miwear.watch.q66", "SPP2");
+        assertTrue(TransportObservation.supportsLive(v2, "miwear.watch.q66"));
+        assertEquals("2", TransportObservation.framingVersion(v2));
+        assertFalse(TransportObservation.useV1Framing(v2, 1));
+        JSONObject v1 = TransportObservation.manualProfile("lchz.watch.m67", "SPP1");
+        assertTrue(TransportObservation.supportsLive(v1, "lchz.watch.m67"));
+        assertEquals("1", TransportObservation.framingVersion(v1));
+        assertTrue(TransportObservation.useV1Framing(v1, 3));
+    }
+
+    @Test public void manualProfileRejectsUnknownBranchAndBlankModel() throws Exception {
+        try {
+            TransportObservation.manualProfile("miwear.watch.q66", "USB");
+            fail("unknown branch must be rejected");
+        } catch (IllegalArgumentException expected) { }
+        try {
+            TransportObservation.manualProfile(" ", "GATT");
+            fail("blank model must be rejected");
+        } catch (IllegalArgumentException expected) { }
     }
 }

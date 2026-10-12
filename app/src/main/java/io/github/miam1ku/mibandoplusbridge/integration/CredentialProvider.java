@@ -11,10 +11,12 @@ import android.os.UserManager;
 import io.github.miam1ku.mibandoplusbridge.BuildConfig;
 import io.github.miam1ku.mibandoplusbridge.HostIdentity;
 import io.github.miam1ku.mibandoplusbridge.data.AuthToken;
+import io.github.miam1ku.mibandoplusbridge.data.BindingShape;
 import io.github.miam1ku.mibandoplusbridge.data.BindingStore;
 import io.github.miam1ku.mibandoplusbridge.data.ImportWindow;
 import io.github.miam1ku.mibandoplusbridge.data.ProtocolCaptureStore;
 import io.github.miam1ku.mibandoplusbridge.data.TransportObservation;
+import java.util.Locale;
 import org.json.JSONObject;
 
 /** A selected-device, process-lifetime import window. No credential read IPC. */
@@ -86,6 +88,10 @@ public final class CredentialProvider extends ContentProvider {
                 case "importBinding" -> {
                     if (self) throw new SecurityException("MI_CALLER_REQUIRED");
                     yield importBinding(extras);
+                }
+                case "manualImport" -> {
+                    requireSelf(self);
+                    yield manualImport(extras);
                 }
                 case "openDiagnostics" -> {
                     requireSelf(self);
@@ -280,6 +286,38 @@ public final class CredentialProvider extends ContentProvider {
     private Bundle importBinding(Bundle input) throws Exception {
         if (input == null) throw new SecurityException("IMPORT_WINDOW_CLOSED");
         window.authorize(input.getString("nonce"), input.getString("address"), SystemClock.elapsedRealtime());
+        return saveBinding(input);
+    }
+
+    /**
+     * Hand-entered credentials for hosts the import hook cannot read, e.g. the international Mi
+     * Fitness app. Saves through the same path as importBinding, and writes the connection profile
+     * into the same observation store a hook capture uses unless a real capture already supports
+     * this model. The window and the Mi-caller check do not apply; only this app may call.
+     */
+    private Bundle manualImport(Bundle input) throws Exception {
+        if (input == null) throw new IllegalArgumentException("BINDING_INCOMPLETE");
+        String address = input.getString("address", "").trim().toUpperCase(Locale.ROOT);
+        if (!BindingShape.mac(address)) throw new IllegalArgumentException("BINDING_ADDRESS");
+        String token = AuthToken.normalize(input.getString("token", ""));
+        if (!AuthToken.hex32(token)) throw new IllegalArgumentException("TOKEN_ENCODING_UNSUPPORTED");
+        String model = input.getString("model", "").trim();
+        if (model.isBlank()) throw new IllegalArgumentException("BINDING_MODEL_REQUIRED");
+        JSONObject existing = TransportObservation.read(getContext());
+        if (!TransportObservation.supportsLive(existing, model)) {
+            TransportObservation.write(getContext(),
+                    TransportObservation.manualProfile(model, input.getString("profile", "")));
+        }
+        io.github.miam1ku.mibandoplusbridge.data.SessionLog.line(getContext(),
+                "bridge MANUAL_IMPORT profile=" + input.getString("profile", ""));
+        Bundle normalized = new Bundle(input);
+        normalized.putString("address", address);
+        normalized.putString("token", token);
+        normalized.putString("model", model);
+        return saveBinding(normalized);
+    }
+
+    private Bundle saveBinding(Bundle input) throws Exception {
         JSONObject record = new JSONObject();
         for (String key : STRINGS) {
             String value = input.getString(key);
