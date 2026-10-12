@@ -21,26 +21,33 @@ public final class UpdateChecker {
 
     public static Result check(int installedCode, String installedName) throws Exception {
         HttpURLConnection connection = (HttpURLConnection) new URL(API).openConnection();
-        connection.setConnectTimeout(8_000);
-        connection.setReadTimeout(8_000);
-        connection.setRequestProperty("Accept", "application/vnd.github+json");
-        connection.setRequestProperty("User-Agent", OWNER_REPO);
-        int status = connection.getResponseCode();
-        InputStream stream = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
-        if (stream == null) throw new IllegalStateException("UPDATE_HTTP_" + status);
-        String body = read(stream);
-        if (status == 404) return new Result(false, "", installedName, installedCode, PAGE, "还没有正式版本。");
-        if (status >= 400) throw new IllegalStateException("UPDATE_HTTP_" + status);
-        JSONObject json = new JSONObject(body);
-        String tag = json.optString("tag_name", "");
-        Parsed parsed = parseTag(tag, json.optString("name", tag));
-        String html = json.optString("html_url", PAGE);
-        String notes = json.optString("body", "").trim();
-        if (notes.length() > 400) notes = notes.substring(0, 400);
-        boolean newer = parsed.code > installedCode
-                || (parsed.code == installedCode && !parsed.name.equals(installedName)
-                && !parsed.name.isBlank());
-        return new Result(newer, tag, parsed.name, parsed.code, html, notes);
+        try {
+            connection.setConnectTimeout(8_000);
+            connection.setReadTimeout(8_000);
+            connection.setRequestProperty("Accept", "application/vnd.github+json");
+            connection.setRequestProperty("User-Agent", OWNER_REPO);
+            int status = connection.getResponseCode();
+            InputStream stream = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
+            if (stream == null) throw new IllegalStateException("UPDATE_HTTP_" + status);
+            String body;
+            try (InputStream in = stream) {
+                body = read(in);
+            }
+            if (status == 404) return new Result(false, "", installedName, installedCode, PAGE, "还没有正式版本。");
+            if (status >= 400) throw new IllegalStateException("UPDATE_HTTP_" + status);
+            JSONObject json = new JSONObject(body);
+            String tag = json.optString("tag_name", "");
+            Parsed parsed = parseTag(tag, json.optString("name", tag));
+            String html = json.optString("html_url", PAGE);
+            String notes = json.optString("body", "").trim();
+            if (notes.length() > 400) notes = notes.substring(0, 400);
+            boolean newer = parsed.code > installedCode
+                    || (parsed.code == installedCode && !parsed.name.equals(installedName)
+                    && !parsed.name.isBlank());
+            return new Result(newer, tag, parsed.name, parsed.code, html, notes);
+        } finally {
+            connection.disconnect();
+        }
     }
 
     static Parsed parseTag(String tag, String fallbackName) {
