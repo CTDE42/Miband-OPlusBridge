@@ -53,6 +53,7 @@ public final class SppDiagnosticClient implements AutoCloseable {
     private BleGattClient ble;
     private int framing;
     private int v1EncryptCounter = 1;
+    /** 线上头只有两字节。CCM nonce 带着这个计数和本会话的密钥，用满 0xffff 后再从 1 计会重复 nonce。 */
     private volatile boolean closed;
     private volatile boolean timedOut;
     private volatile String linkStop;
@@ -104,6 +105,17 @@ public final class SppDiagnosticClient implements AutoCloseable {
     }
     private record Inputs(String address, String region, byte[] key, int capability,
             String transport, JSONObject binding, JSONObject observation) {}
+
+    /**
+     * 取出本会话的下一个 V1 计数。0xffff 是最后一帧：再发一帧会让 CCM nonce 和同一把会话密钥重复。
+     * 抛出 {@code V1_COUNTER_EXHAUSTED} 后实时会话关掉链路，下一次连接重新认证，计数从 1 开始。
+     */
+    int takeV1Counter() throws Failure {
+        if (v1EncryptCounter < 1 || v1EncryptCounter > 0xffff) throw new Failure("V1_COUNTER_EXHAUSTED");
+        return v1EncryptCounter++;
+    }
+
+    void armV1Counter(int next) { v1EncryptCounter = next; }
 
     public SppDiagnosticClient(Context context, Consumer<String> progress) {
         this.context = context.getApplicationContext();
@@ -591,7 +603,7 @@ public final class SppDiagnosticClient implements AutoCloseable {
             if (framing == 2) {
                 int counter = 0;
                 if (authenticated) {
-                    counter = v1EncryptCounter++;
+                    counter = takeV1Counter();
                     bytes = session.encryptV1(bytes, counter);
                 }
                 if (bytes.length > peerPayloadLimit) throw new Failure("COMMAND_EXCEEDS_NEGOTIATED_SIZE");
@@ -608,7 +620,7 @@ public final class SppDiagnosticClient implements AutoCloseable {
                     dataType = SppV1Codec.DATA_AUTH;
                 } else if (authenticated) {
                     dataType = SppV1Codec.DATA_ENCRYPTED;
-                    counter = v1EncryptCounter++;
+                    counter = takeV1Counter();
                     bytes = SppV1Codec.sealEncrypted(counter, session.encryptV1(bytes, counter));
                 }
                 if (bytes.length > peerPayloadLimit) throw new Failure("COMMAND_EXCEEDS_NEGOTIATED_SIZE");
@@ -643,7 +655,7 @@ public final class SppDiagnosticClient implements AutoCloseable {
                 int counter = 0;
                 byte[] body = chunk;
                 if (authenticated) {
-                    counter = v1EncryptCounter++;
+                    counter = takeV1Counter();
                     body = session.encryptV1(chunk, counter);
                 }
                 SessionLog.line(context, "tx ble icon part bytes=" + chunk.length + " counter=" + counter);
