@@ -9,7 +9,6 @@ import android.content.pm.PackageManager;
 import android.service.notification.NotificationListenerService;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Log;
 import io.github.miam1ku.mibandoplusbridge.hook.xposed.XC_MethodHook;
 import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedBridge;
 import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedHelpers;
@@ -103,7 +102,7 @@ public final class OHealthNotificationAccessHook {
             XposedBridge.hookAllMethods(service, "onListenerDisconnected", lifecycle("disconnected", false));
             XposedBridge.hookAllMethods(service, "onDestroy", lifecycle("destroyed", false));
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_NOTIFICATION_LISTENER lifecycle-hook "
+            HookRuntime.log("OHEALTH_NOTIFICATION_LISTENER lifecycle-hook "
                     + failure.getClass().getSimpleName());
         }
     }
@@ -222,7 +221,7 @@ public final class OHealthNotificationAccessHook {
     }
 
     private static void note(Context context, String line) {
-        Log.i("OplusBandBridge", line);
+        HookRuntime.log(line);
         OHealthDeviceHook.traceLine(context, line);
     }
 

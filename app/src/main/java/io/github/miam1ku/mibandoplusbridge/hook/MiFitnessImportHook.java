@@ -67,7 +67,7 @@ public final class MiFitnessImportHook {
                         try {
                             context.getContentResolver().call(CredentialProvider.URI, "importBinding", null, binding);
                         } catch (RuntimeException rejected) {
-                            android.util.Log.i("OplusBandBridge", "OplusBandBridge: IMPORT_REJECTED");
+                            HookRuntime.log("OplusBandBridge: IMPORT_REJECTED");
                         } finally {
                             binding.clear();
                             pending.set(false);
@@ -76,7 +76,7 @@ public final class MiFitnessImportHook {
                     dispatched = true;
                 } catch (Throwable incompatible) {
                     // Do not log exception objects: their messages can contain host credentials.
-                    android.util.Log.i("OplusBandBridge", "OplusBandBridge: IMPORT_CAPTURE_FAILED");
+                    HookRuntime.log("OplusBandBridge: IMPORT_CAPTURE_FAILED");
                 } finally {
                     if (!dispatched) pending.set(false);
                 }

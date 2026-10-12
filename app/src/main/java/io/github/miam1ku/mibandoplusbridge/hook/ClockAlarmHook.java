@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.miam1ku.mibandoplusbridge.hook;
 
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.HookRuntime;
+
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
@@ -104,7 +106,7 @@ public final class ClockAlarmHook {
         if (schedule == null) return;
         Integer id = alarmId(schedule, text);
         if (id == null) {
-            android.util.Log.i("OplusBandBridge", "CLOCK_ALARM_ID_MISSING");
+            HookRuntime.log("CLOCK_ALARM_ID_MISSING");
             return;
         }
         ringingSchedule = schedule;
@@ -192,7 +194,7 @@ public final class ClockAlarmHook {
                         int bandId = message.arg2;
                         if (bandOp != 1 && bandOp != 2) return;
                         if (ringingScheduleId < 0 && bandId > 0) ringingScheduleId = bandId;
-                        android.util.Log.i("OplusBandBridge", "CLOCK_ALARM_REPLY op=" + bandOp
+                        HookRuntime.log("CLOCK_ALARM_REPLY op=" + bandOp
                                 + " id=" + ringingScheduleId);
                         stopRinging(context, bandOp);
                         if (bandOp == 1) {
@@ -205,7 +207,7 @@ public final class ClockAlarmHook {
         try {
             context.getContentResolver().call(AUTHORITY, "operation", null, extras);
         } catch (RuntimeException denied) {
-            android.util.Log.i("OplusBandBridge", "CLOCK_ALARM_CALL_FAILED "
+            HookRuntime.log("CLOCK_ALARM_CALL_FAILED "
                     + denied.getClass().getSimpleName());
         }
     }
@@ -222,7 +224,7 @@ public final class ClockAlarmHook {
     private static void stopRinging(Context context, int op) {
         int id = ringingScheduleId;
         if (context == null || id < 0) {
-            android.util.Log.i("OplusBandBridge", "CLOCK_ALARM_STOP_NO_ID");
+            HookRuntime.log("CLOCK_ALARM_STOP_NO_ID");
             return;
         }
         if (op == 1 && snoozed) cancelSnooze(context);
@@ -234,9 +236,9 @@ public final class ClockAlarmHook {
         stop.putExtra("IS_ALARM_DISMISSED", op == 1);
         try {
             context.getApplicationContext().startForegroundService(stop);
-            android.util.Log.i("OplusBandBridge", "CLOCK_ALARM_STOP op=" + op + " id=" + id);
+            HookRuntime.log("CLOCK_ALARM_STOP op=" + op + " id=" + id);
         } catch (RuntimeException failure) {
-            android.util.Log.i("OplusBandBridge", "CLOCK_ALARM_STOP_FAILED "
+            HookRuntime.log("CLOCK_ALARM_STOP_FAILED "
                     + failure.getClass().getSimpleName());
         }
     }
@@ -249,7 +251,7 @@ public final class ClockAlarmHook {
         try {
             context.sendBroadcast(cancel);
         } catch (RuntimeException failure) {
-            android.util.Log.i("OplusBandBridge", "CLOCK_SNOOZE_CANCEL_FAILED "
+            HookRuntime.log("CLOCK_SNOOZE_CANCEL_FAILED "
                     + failure.getClass().getSimpleName());
         }
     }
@@ -274,7 +276,7 @@ public final class ClockAlarmHook {
         try {
             context.getContentResolver().call(AUTHORITY, "status", null, extras);
         } catch (RuntimeException failure) {
-            android.util.Log.i("OplusBandBridge", "CLOCK_HOOK_REPORT_FAILED "
+            HookRuntime.log("CLOCK_HOOK_REPORT_FAILED "
                     + failure.getClass().getSimpleName());
         }
     }
@@ -329,6 +331,6 @@ public final class ClockAlarmHook {
     }
 
     private static void skip(Throwable failure) {
-        android.util.Log.i("OplusBandBridge", "CLOCK_ALARM_HOOK_SKIPPED " + failure.getClass().getSimpleName());
+        HookRuntime.log("CLOCK_ALARM_HOOK_SKIPPED " + failure.getClass().getSimpleName());
     }
 }

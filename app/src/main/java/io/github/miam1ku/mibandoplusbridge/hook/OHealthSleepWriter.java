@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.miam1ku.mibandoplusbridge.hook;
 
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.HookRuntime;
+
 import android.content.Context;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
-import android.util.Log;
 import io.github.miam1ku.mibandoplusbridge.data.HealthRecord;
 import io.github.miam1ku.mibandoplusbridge.integration.HealthQueueProvider;
 import java.lang.reflect.Constructor;
@@ -44,7 +45,7 @@ final class OHealthSleepWriter {
         try {
             derivedWriter = new OHealthSleepDerivedWriter(host);
         } catch (ReflectiveOperationException unavailable) {
-            Log.i("OplusBandBridge", "OHEALTH_SLEEP_DERIVED_CONTRACT " + unavailable);
+            HookRuntime.log("OHEALTH_SLEEP_DERIVED_CONTRACT " + unavailable);
             derivedWriter = null;
         }
         this.derived = derivedWriter;
@@ -97,7 +98,7 @@ final class OHealthSleepWriter {
             bValue = bClass.getMethod("setValue", Integer.class);
             bConfig = bClass.getMethod("setConfig", Integer.class);
         } catch (ReflectiveOperationException unavailable) {
-            Log.i("OplusBandBridge", "OHEALTH_BREATH_RATE_CONTRACT " + unavailable);
+            HookRuntime.log("OHEALTH_BREATH_RATE_CONTRACT " + unavailable);
             bClass = null;
             bNew = null;
             bAccount = null;
@@ -133,7 +134,7 @@ final class OHealthSleepWriter {
         if (nights.isEmpty()) return;
         List<OHealthSleepPlan.Day> days = OHealthSleepPlan.days(nights);
         if (days.isEmpty()) return;
-        Log.i("OplusBandBridge", "OHEALTH_SLEEP_BEGIN days=" + days.size() + " nights=" + nights.size());
+        HookRuntime.log("OHEALTH_SLEEP_BEGIN days=" + days.size() + " nights=" + nights.size());
         int inserted = 0;
         int skipped = 0;
         int held = 0;
@@ -146,7 +147,7 @@ final class OHealthSleepWriter {
                 else {
                     skipped++;
                     String line = "OHEALTH_SLEEP_DAY_SKIPPED date=" + day.date() + " reason=" + skip;
-                    Log.i("OplusBandBridge", line);
+                    HookRuntime.log(line);
                     OHealthDeviceHook.traceLine(context, line);
                 }
             } catch (SecurityException paused) {
@@ -155,11 +156,11 @@ final class OHealthSleepWriter {
                 String reason = heldDay.getMessage();
                 if (reason != null && reason.startsWith("SLEEP_SEGMENT_UNCONFIRMED")) {
                     held++;
-                    Log.i("OplusBandBridge", "OHEALTH_SLEEP_DAY_HELD date=" + day.date() + " " + reason);
+                    HookRuntime.log("OHEALTH_SLEEP_DAY_HELD date=" + day.date() + " " + reason);
                 } else {
                     failed++;
                     String line = "OHEALTH_SLEEP_DAY_FAILED date=" + day.date() + " reason=" + reason;
-                    Log.i("OplusBandBridge", line);
+                    HookRuntime.log(line);
                     OHealthDeviceHook.traceLine(context, line);
                 }
             } catch (Exception | LinkageError failedDay) {
@@ -167,11 +168,11 @@ final class OHealthSleepWriter {
                 String line = "OHEALTH_SLEEP_DAY_FAILED date=" + day.date() + " "
                         + failedDay.getClass().getSimpleName()
                         + (failedDay.getMessage() == null ? "" : " " + failedDay.getMessage());
-                Log.i("OplusBandBridge", line);
+                HookRuntime.log(line);
                 OHealthDeviceHook.traceLine(context, line);
             }
         }
-        Log.i("OplusBandBridge", "OHEALTH_SLEEP_IMPORT days=" + days.size()
+        HookRuntime.log("OHEALTH_SLEEP_IMPORT days=" + days.size()
                 + " inserted=" + inserted + " skipped=" + skipped + " held=" + held + " failed=" + failed);
     }
 
@@ -195,7 +196,7 @@ final class OHealthSleepWriter {
                 try {
                     host.deleteRows(api, TABLE_SLEEP, account, queued, night.fallAsleepMs(), night.wakeMs());
                 } catch (Exception ignored) {
-                    Log.i("OplusBandBridge", "OHEALTH_SLEEP_PREVIOUS_DEVICE_KEPT date=" + day.date());
+                    HookRuntime.log("OHEALTH_SLEEP_PREVIOUS_DEVICE_KEPT date=" + day.date());
                 }
                 if (breathClass != null) {
                     try {
@@ -226,7 +227,7 @@ final class OHealthSleepWriter {
                         anyUpdated = true;
                     }
                 } catch (Exception derivedFailure) {
-                    Log.i("OplusBandBridge", "OHEALTH_SLEEP_DERIVED_FAILED date=" + day.date()
+                    HookRuntime.log("OHEALTH_SLEEP_DERIVED_FAILED date=" + day.date()
                             + " " + derivedFailure);
                 }
             }
@@ -250,13 +251,13 @@ final class OHealthSleepWriter {
                     List<?> writtenDay = host.readRows(api, account, OHealthSleepDerivedWriter.TABLE_DAY_STAT,
                             null, statStart, statEnd, 0, false);
                     if (!derived.dayStatMatches(writtenDay, device, previous, day)) {
-                        Log.w("OplusBandBridge", "OHEALTH_SLEEP_DAY_STAT_UNCONFIRMED date=" + day.date()
+                        HookRuntime.log("OHEALTH_SLEEP_DAY_STAT_UNCONFIRMED date=" + day.date()
                                 + " rows=" + (writtenDay == null ? 0 : writtenDay.size()));
                     }
                     anyUpdated = true;
                 }
             } catch (Exception derivedFailure) {
-                Log.i("OplusBandBridge", "OHEALTH_SLEEP_DERIVED_FAILED date=" + day.date()
+                HookRuntime.log("OHEALTH_SLEEP_DERIVED_FAILED date=" + day.date()
                         + " " + derivedFailure);
             }
         }

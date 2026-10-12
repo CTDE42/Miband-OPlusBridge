@@ -10,7 +10,6 @@ import android.database.ContentObserver;
 import android.database.Cursor;
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.util.Log;
 import io.github.miam1ku.mibandoplusbridge.hook.xposed.XC_MethodHook;
 import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedBridge;
 import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedHelpers;
@@ -34,7 +33,6 @@ import org.json.JSONObject;
  * 注入点按这些特征在运行时解析，不写死某一版的混淆名。
  */
 public final class MyDevicesHook {
-    private static final String TAG = "OplusBandBridge";
     private static final String PACKAGE = "io.github.miam1ku.mibandoplusbridge";
     private static final String MANAGER = "com.heytap.mydevices.core.config.DeviceAppConfigManager";
     private static final String APP_AGENT = "com.heytap.mydevices.core.agent.AppAgentManager";
@@ -120,7 +118,7 @@ public final class MyDevicesHook {
                 unregister();
             }
         });
-        Log.i(TAG, "DEVICE_CARD_BIND cache=" + cache.getName()
+        HookRuntime.log("DEVICE_CARD_BIND cache=" + cache.getName()
                 + " register=" + register.getName()
                 + " observer=" + observerType.getName());
     }
@@ -231,7 +229,7 @@ public final class MyDevicesHook {
                 if (param.args == null) return;
                 for (Object arg : param.args) {
                     if (!(arg instanceof Intent intent)) continue;
-                    if (NativePanel.redirect(context, intent)) Log.i(TAG, "DETAIL_JUMP_NATIVE");
+                    if (NativePanel.redirect(context, intent)) HookRuntime.log("DETAIL_JUMP_NATIVE");
                     return;
                 }
             }
@@ -247,7 +245,7 @@ public final class MyDevicesHook {
         try {
             type = Class.forName("com.oplus.mydevices.domain.entities.device.DeviceInfoKt", false, loader);
         } catch (ClassNotFoundException missing) {
-            Log.i(TAG, "ICON_PACKAGE_HOOK_UNAVAILABLE");
+            HookRuntime.log("ICON_PACKAGE_HOOK_UNAVAILABLE");
             return;
         }
         Method found = null;
@@ -261,7 +259,7 @@ public final class MyDevicesHook {
             if ("getPluginLookupPackage".equals(name)) break;
         }
         if (found == null) {
-            Log.i(TAG, "ICON_PACKAGE_HOOK_UNAVAILABLE");
+            HookRuntime.log("ICON_PACKAGE_HOOK_UNAVAILABLE");
             return;
         }
         XposedBridge.hookMethod(found, new XC_MethodHook() {
@@ -270,7 +268,7 @@ public final class MyDevicesHook {
                 param.setResult(NativePanel.HEALTH);
             }
         });
-        Log.i(TAG, "ICON_PACKAGE_HOOK " + found.getName());
+        HookRuntime.log("ICON_PACKAGE_HOOK " + found.getName());
     }
 
     private static boolean ourBand(Object device) {
@@ -298,13 +296,13 @@ public final class MyDevicesHook {
         try {
             deviceType = Class.forName("com.oplus.mydevices.domain.entities.device.DeviceType", false, loader);
         } catch (ClassNotFoundException missing) {
-            Log.i(TAG, "ICON_PLACEHOLDER_HOOK_UNAVAILABLE");
+            HookRuntime.log("ICON_PLACEHOLDER_HOOK_UNAVAILABLE");
             return;
         }
         int watch = context.getResources().getIdentifier("default_watch", "drawable", "com.heytap.mydevices");
         int band = context.getResources().getIdentifier("default_wristband", "drawable", "com.heytap.mydevices");
         if (watch == 0 && band == 0) {
-            Log.i(TAG, "ICON_PLACEHOLDER_HOOK_UNAVAILABLE");
+            HookRuntime.log("ICON_PLACEHOLDER_HOOK_UNAVAILABLE");
             return;
         }
         int hooked = 0;
@@ -342,7 +340,7 @@ public final class MyDevicesHook {
             } catch (Throwable ignored) {
             }
         }
-        Log.i(TAG, hooked == 0 ? "ICON_PLACEHOLDER_HOOK_UNAVAILABLE" : "ICON_PLACEHOLDER_HOOK " + hooked);
+        HookRuntime.log(hooked == 0 ? "ICON_PLACEHOLDER_HOOK_UNAVAILABLE" : "ICON_PLACEHOLDER_HOOK " + hooked);
     }
 
     private static int placeholderIcon(Object[] args, int watch, int band) {
@@ -376,7 +374,7 @@ public final class MyDevicesHook {
         } catch (RuntimeException unavailable) {
             active = null;
             session.thread.quitSafely();
-            Log.w(TAG, "DEVICE_CARD_OBSERVER_UNAVAILABLE", unavailable);
+            HookRuntime.log("DEVICE_CARD_OBSERVER_UNAVAILABLE", unavailable);
         }
     }
 
@@ -443,7 +441,7 @@ public final class MyDevicesHook {
                 }
                 last = now;
             } catch (Exception unavailable) {
-                Log.w(TAG, "DEVICE_CARD_OBSERVER_UNAVAILABLE", unavailable);
+                HookRuntime.log("DEVICE_CARD_OBSERVER_UNAVAILABLE", unavailable);
             }
         }
     }

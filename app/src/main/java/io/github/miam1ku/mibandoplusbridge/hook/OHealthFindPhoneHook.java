@@ -47,19 +47,18 @@ public final class OHealthFindPhoneHook {
                                 HostNotifyProvider.URI, "findWatch", null, extras);
                         if (result == null || !"QUEUED".equals(result.getString("status"))) {
                             findingWatch = !findingWatch;
-                            android.util.Log.i("OplusBandBridge", "FIND_WATCH native unavailable");
+                            HookRuntime.log("FIND_WATCH native unavailable");
                             return;
                         }
-                        android.util.Log.i("OplusBandBridge",
-                                findingWatch ? "FIND_WATCH start" : "FIND_WATCH stop");
+                        HookRuntime.log(findingWatch ? "FIND_WATCH start" : "FIND_WATCH stop");
                     } catch (RuntimeException failure) {
                         findingWatch = !findingWatch;
-                        android.util.Log.i("OplusBandBridge", "FIND_WATCH native unavailable");
+                        HookRuntime.log("FIND_WATCH native unavailable");
                     }
                 }
             });
         } catch (Throwable failure) {
-            android.util.Log.i("OplusBandBridge", "FIND_WATCH native unavailable");
+            HookRuntime.log("FIND_WATCH native unavailable");
         }
     }
 
@@ -68,7 +67,7 @@ public final class OHealthFindPhoneHook {
             Object handler = XposedHelpers.newInstance(XposedHelpers.findClass(HANDLER, loader));
             XposedHelpers.callMethod(handler, "playRing");
         } catch (Throwable failure) {
-            android.util.Log.i("OplusBandBridge", "FIND_PHONE native unavailable");
+            HookRuntime.log("FIND_PHONE native unavailable");
         }
     }
 
@@ -79,7 +78,7 @@ public final class OHealthFindPhoneHook {
             XposedHelpers.callMethod(instance, "stopPlayRing");
             XposedHelpers.callMethod(instance, "setVolumeToOrigin");
         } catch (Throwable failure) {
-            android.util.Log.i("OplusBandBridge", "FIND_PHONE native unavailable");
+            HookRuntime.log("FIND_PHONE native unavailable");
         }
     }
 

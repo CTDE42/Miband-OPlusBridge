@@ -10,7 +10,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.SystemClock;
-import android.util.Log;
 import io.github.miam1ku.mibandoplusbridge.hook.xposed.XC_MethodHook;
 import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedBridge;
 import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedHelpers;
@@ -79,33 +78,33 @@ public final class OHealthHealthImportHook {
         if (!HOST.equals(context.getPackageName())) return;
         String process = Application.getProcessName();
         if (!HOST.equals(process)) {
-            Log.i("OplusBandBridge", "OHEALTH_IMPORT_SKIPPED process=" + process);
+            HookRuntime.log("OHEALTH_IMPORT_SKIPPED process=" + process);
             return;
         }
         final HostContract contract;
         try {
             contract = new HostContract(loader);
         } catch (ReflectiveOperationException | LinkageError unsupported) {
-            Log.i("OplusBandBridge", "OHEALTH_IMPORT_CONTRACT_UNAVAILABLE");
+            HookRuntime.log("OHEALTH_IMPORT_CONTRACT_UNAVAILABLE");
             throw new IllegalStateException("HOST_VERSION_UNSUPPORTED_OHEALTH");
         }
         OHealthSleepWriter sleepWriter = null;
         try {
             sleepWriter = new OHealthSleepWriter(contract);
         } catch (ReflectiveOperationException | LinkageError unsupported) {
-            Log.i("OplusBandBridge", "OHEALTH_SLEEP_CONTRACT_UNAVAILABLE");
+            HookRuntime.log("OHEALTH_SLEEP_CONTRACT_UNAVAILABLE");
         }
         OHealthStepWriter stepWriter = null;
         try {
             stepWriter = new OHealthStepWriter(contract);
         } catch (ReflectiveOperationException | LinkageError unsupported) {
-            Log.i("OplusBandBridge", "OHEALTH_STEP_CONTRACT_UNAVAILABLE");
+            HookRuntime.log("OHEALTH_STEP_CONTRACT_UNAVAILABLE");
         }
         OHealthSportWriter sportWriter = null;
         try {
             sportWriter = new OHealthSportWriter(contract);
         } catch (ReflectiveOperationException | LinkageError unsupported) {
-            Log.i("OplusBandBridge", "OHEALTH_SPORT_CONTRACT_UNAVAILABLE");
+            HookRuntime.log("OHEALTH_SPORT_CONTRACT_UNAVAILABLE");
         }
         OHealthHealthImportHook hook = new OHealthHealthImportHook(context, contract, sleepWriter, stepWriter, sportWriter);
         hook.observe();
@@ -189,7 +188,7 @@ public final class OHealthHealthImportHook {
             String check = "OHEALTH_ACCOUNT_RESTORE_CHECK guest=" + guest
                     + " system=" + system + " stored=" + storedLogin
                     + " placeholder=" + placeholder + " agreed=" + agreed;
-            Log.i("OplusBandBridge", check);
+            HookRuntime.log(check);
             OHealthDeviceHook.traceLine(context, check);
             // isSystemLogin is false until the account SDK initializes, even when the last
             // session was signed in. Without the health agreement, set(false) is forced back
@@ -199,7 +198,7 @@ public final class OHealthHealthImportHook {
             if (agreed && (system || storedLogin) && tokenMissing(loader)
                     && manager != null && tokenRefreshTried.compareAndSet(false, true)) {
                 manager.getClass().getMethod("cacheAccountInfo", boolean.class).invoke(manager, true);
-                Log.i("OplusBandBridge", "OHEALTH_ACCOUNT_TOKEN_REFRESH");
+                HookRuntime.log("OHEALTH_ACCOUNT_TOKEN_REFRESH");
                 OHealthDeviceHook.traceLine(context, "OHEALTH_ACCOUNT_TOKEN_REFRESH");
             }
             if (!agreed || !(system || storedLogin) || (!guest && !placeholder)) return;
@@ -207,11 +206,11 @@ public final class OHealthHealthImportHook {
             if (manager != null) {
                 manager.getClass().getMethod("cacheAccountInfo", boolean.class).invoke(manager, true);
             }
-            Log.i("OplusBandBridge", "OHEALTH_ACCOUNT_RESTORED");
+            HookRuntime.log("OHEALTH_ACCOUNT_RESTORED");
             OHealthDeviceHook.traceLine(context, "OHEALTH_ACCOUNT_RESTORED");
         } catch (Throwable failure) {
             Throwable cause = failure.getCause() == null ? failure : failure.getCause();
-            Log.i("OplusBandBridge", "OHEALTH_ACCOUNT_RESTORE_FAILED " + cause.getClass().getSimpleName());
+            HookRuntime.log("OHEALTH_ACCOUNT_RESTORE_FAILED " + cause.getClass().getSimpleName());
         }
     }
     /**
@@ -230,14 +229,14 @@ public final class OHealthHealthImportHook {
                     if (param.args.length == 0 || !Boolean.TRUE.equals(param.args[0])) return;
                     if (!accountStillSigned()) return;
                     param.setResult(null);
-                    Log.i("OplusBandBridge", "OHEALTH_ACCOUNT_TOURIST_IGNORED");
+                    HookRuntime.log("OHEALTH_ACCOUNT_TOURIST_IGNORED");
                     OHealthDeviceHook.traceLine(context, "OHEALTH_ACCOUNT_TOURIST_IGNORED");
                 }
             };
             XposedBridge.hookAllMethods(helper, "setIsInTouristMode", keep);
             XposedBridge.hookAllMethods(status, "setIsInTouristMode", keep);
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_ACCOUNT_GUARD_FAILED "
+            HookRuntime.log("OHEALTH_ACCOUNT_GUARD_FAILED "
                     + failure.getClass().getSimpleName());
         }
     }
@@ -270,7 +269,7 @@ public final class OHealthHealthImportHook {
             if (initializing != null && initialized != null
                     && initializing.get() && !initialized.get()) {
                 initializing.set(false);
-                Log.i("OplusBandBridge", "OHEALTH_ACCOUNT_INIT_RESET");
+                HookRuntime.log("OHEALTH_ACCOUNT_INIT_RESET");
                 OHealthDeviceHook.traceLine(context, "OHEALTH_ACCOUNT_INIT_RESET");
             }
             XposedBridge.hookAllMethods(packages, "getAccountPkgName", new XC_MethodHook() {
@@ -282,7 +281,7 @@ public final class OHealthHealthImportHook {
                         cachedPackage.set(null, found);
                     } catch (IllegalAccessException ignored) { }
                     param.setResult(found);
-                    Log.i("OplusBandBridge", "OHEALTH_ACCOUNT_PKG " + found);
+                    HookRuntime.log("OHEALTH_ACCOUNT_PKG " + found);
                 }
             });
             XposedBridge.hookAllMethods(sdk, "init", new XC_MethodHook() {
@@ -292,7 +291,7 @@ public final class OHealthHealthImportHook {
                     Context ready = application();
                     if (ready == null) return;
                     param.args[0] = ready;
-                    Log.i("OplusBandBridge", "OHEALTH_ACCOUNT_INIT_CONTEXT");
+                    HookRuntime.log("OHEALTH_ACCOUNT_INIT_CONTEXT");
                 }
             });
             Handler main = HookRuntime.main();
@@ -300,7 +299,7 @@ public final class OHealthHealthImportHook {
                 main.postDelayed(this::retryAccountInit, delay);
             }
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_ACCOUNT_SDK_HOOK_FAILED "
+            HookRuntime.log("OHEALTH_ACCOUNT_SDK_HOOK_FAILED "
                     + failure.getClass().getSimpleName());
         }
     }
@@ -345,10 +344,10 @@ public final class OHealthHealthImportHook {
                 return;
             }
             sdk.getMethod("init", Context.class).invoke(null, app);
-            Log.i("OplusBandBridge", "OHEALTH_ACCOUNT_INIT_RETRY");
+            HookRuntime.log("OHEALTH_ACCOUNT_INIT_RETRY");
             OHealthDeviceHook.traceLine(context, "OHEALTH_ACCOUNT_INIT_RETRY");
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_ACCOUNT_INIT_RETRY_FAILED "
+            HookRuntime.log("OHEALTH_ACCOUNT_INIT_RETRY_FAILED "
                     + failure.getClass().getSimpleName());
         }
     }
@@ -398,21 +397,21 @@ public final class OHealthHealthImportHook {
                                 .invoke(prefs, "account_token");
                         if (stored == null || String.valueOf(stored).isBlank()) {
                             if (tokenFallbackLogged.compareAndSet(false, true)) {
-                                Log.i("OplusBandBridge", "OHEALTH_ACCOUNT_TOKEN_ABSENT");
+                                HookRuntime.log("OHEALTH_ACCOUNT_TOKEN_ABSENT");
                                 OHealthDeviceHook.traceLine(context, "OHEALTH_ACCOUNT_TOKEN_ABSENT");
                             }
                             return;
                         }
                         param.setResult(String.valueOf(stored));
                         if (tokenFallbackLogged.compareAndSet(false, true)) {
-                            Log.i("OplusBandBridge", "OHEALTH_ACCOUNT_TOKEN_STORED");
+                            HookRuntime.log("OHEALTH_ACCOUNT_TOKEN_STORED");
                             OHealthDeviceHook.traceLine(context, "OHEALTH_ACCOUNT_TOKEN_STORED");
                         }
                     } catch (Throwable ignored) { }
                 }
             });
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_ACCOUNT_TOKEN_HOOK_FAILED "
+            HookRuntime.log("OHEALTH_ACCOUNT_TOKEN_HOOK_FAILED "
                     + failure.getClass().getSimpleName());
         }
     }
@@ -458,7 +457,7 @@ public final class OHealthHealthImportHook {
             try {
                 steps.publishSnapshot(context);
             } catch (Throwable failure) {
-                Log.i("OplusBandBridge", "OHEALTH_STEP_CARD_UNAVAILABLE " + failure.getClass().getSimpleName());
+                HookRuntime.log("OHEALTH_STEP_CARD_UNAVAILABLE " + failure.getClass().getSimpleName());
             }
         }
         OHealthLockCardHook.notifyCards(context);
@@ -468,7 +467,7 @@ public final class OHealthHealthImportHook {
         try {
             if (publishHeart(band, heart, at)) publishedHeartAt = at;
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_HEART_CARD_UNAVAILABLE " + failure.getClass().getSimpleName());
+            HookRuntime.log("OHEALTH_HEART_CARD_UNAVAILABLE " + failure.getClass().getSimpleName());
         }
     }
 
@@ -492,7 +491,7 @@ public final class OHealthHealthImportHook {
         if (!host.read(api, account, model, rows).contains(model.key(account, record))) {
             throw new IllegalStateException("HEART_CARD_UNCONFIRMED");
         }
-        Log.i("OplusBandBridge", "OHEALTH_HEART_CARD table=" + model.kind.table);
+        HookRuntime.log("OHEALTH_HEART_CARD table=" + model.kind.table);
         return true;
     }
 
@@ -584,7 +583,7 @@ public final class OHealthHealthImportHook {
             String account = value instanceof String ? (String) value : null;
             if (!usableAccount(account)) {
                 if (!"OHEALTH_ACCOUNT_UNAVAILABLE".equals(lastFailure)) {
-                    Log.i("OplusBandBridge", "OHEALTH_ACCOUNT_UNAVAILABLE");
+                    HookRuntime.log("OHEALTH_ACCOUNT_UNAVAILABLE");
                     lastFailure = "OHEALTH_ACCOUNT_UNAVAILABLE";
                 }
                 return;
@@ -594,9 +593,9 @@ public final class OHealthHealthImportHook {
                 host.publishedAccount = account;
                 if (!Objects.equals(previous, account)) accountEpoch.incrementAndGet();
             }
-            Log.i("OplusBandBridge", "OHEALTH_ACCOUNT_OBSERVED");
+            HookRuntime.log("OHEALTH_ACCOUNT_OBSERVED");
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_ACCOUNT_READ_FAILED " + failure.getClass().getSimpleName());
+            HookRuntime.log("OHEALTH_ACCOUNT_READ_FAILED " + failure.getClass().getSimpleName());
         }
     }
 
@@ -629,7 +628,7 @@ public final class OHealthHealthImportHook {
         String category = failure instanceof SecurityException ? "ACCOUNT_PAUSED" : "RETAINED";
         String detail = category + " " + cause.getClass().getSimpleName();
         if (reason != null && reason.matches("[A-Z][A-Z0-9_]{1,90}")) detail += " " + reason;
-        if (!detail.equals(lastFailure)) Log.i("OplusBandBridge", "OHEALTH_IMPORT_" + detail);
+        if (!detail.equals(lastFailure)) HookRuntime.log("OHEALTH_IMPORT_" + detail);
         lastFailure = detail;
     }
 
@@ -644,7 +643,7 @@ public final class OHealthHealthImportHook {
             Object holder = holderField.get(api);
             if (holder != null) fillContext(holder.getClass(), holder);
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_HEYTAP_CONTEXT_UNAVAILABLE "
+            HookRuntime.log("OHEALTH_HEYTAP_CONTEXT_UNAVAILABLE "
                     + failure.getClass().getSimpleName());
         }
     }
@@ -655,7 +654,7 @@ public final class OHealthHealthImportHook {
             field.setAccessible(true);
             if (field.get(instance) == null) {
                 field.set(instance, context);
-                Log.i("OplusBandBridge", "OHEALTH_CONTEXT_SET " + type.getSimpleName() + "." + field.getName());
+                HookRuntime.log("OHEALTH_CONTEXT_SET " + type.getSimpleName() + "." + field.getName());
             }
         }
     }
@@ -711,7 +710,7 @@ public final class OHealthHealthImportHook {
                 for (HealthRecord record : records) {
                     if (!found.contains(model.key(account, record))) missing.add(record);
                 }
-                Log.i("OplusBandBridge", "OHEALTH_IMPORT_GROUP table=" + model.kind.table
+                HookRuntime.log("OHEALTH_IMPORT_GROUP table=" + model.kind.table
                         + " records=" + records.size() + " found=" + found.size()
                         + " missing=" + missing.size());
                 boolean inserted = false;
@@ -745,7 +744,7 @@ public final class OHealthHealthImportHook {
                 }
                 if (acknowledged == before && !missing.isEmpty()) retained = true;
             }
-            Log.i("OplusBandBridge", "OHEALTH_IMPORT_PAGE acknowledged=" + acknowledged
+            HookRuntime.log("OHEALTH_IMPORT_PAGE acknowledged=" + acknowledged
                     + " released=" + released + " retained=" + retained);
             // Confirmed or host-rejected rows are gone. Continue while the page made progress.
             if (acknowledged == 0 && released == 0) throw new IllegalStateException("IMPORT_READBACK_INCOMPLETE");
@@ -767,7 +766,7 @@ public final class OHealthHealthImportHook {
         try {
             host.deleteRows(api, table, account, previous, Math.max(0, start - 1), end + 1);
         } catch (Exception ignored) {
-            Log.i("OplusBandBridge", "OHEALTH_PREVIOUS_DEVICE_KEPT table=" + table);
+            HookRuntime.log("OHEALTH_PREVIOUS_DEVICE_KEPT table=" + table);
         }
     }
 
@@ -815,7 +814,7 @@ public final class OHealthHealthImportHook {
             context.getContentResolver().call(HealthQueueProvider.URI, "adoptAccount", null, data);
             request();
         } catch (Throwable ignored) {
-            Log.i("OplusBandBridge", "OHEALTH_ACCOUNT_ADOPT_FAILED");
+            HookRuntime.log("OHEALTH_ACCOUNT_ADOPT_FAILED");
         }
     }
 
@@ -975,7 +974,7 @@ public final class OHealthHealthImportHook {
                     try { observerDispose.invoke(observer); } catch (ReflectiveOperationException ignored) { }
                 }
             } catch (Throwable failure) {
-                Log.i("OplusBandBridge", "OHEALTH_CLOUD_SYNC_FAILED table=" + table
+                HookRuntime.log("OHEALTH_CLOUD_SYNC_FAILED table=" + table
                         + " " + failure.getClass().getSimpleName());
             }
         }

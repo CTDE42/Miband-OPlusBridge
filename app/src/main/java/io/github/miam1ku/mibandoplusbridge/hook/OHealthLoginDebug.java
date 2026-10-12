@@ -81,7 +81,7 @@ public final class OHealthLoginDebug {
     }
 
     private static void log(String line) {
-        android.util.Log.i("OplusBandBridge", line);
+        HookRuntime.log(line);
         XposedBridge.log("OplusBandBridge " + line);
     }
 

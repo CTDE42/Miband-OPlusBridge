@@ -42,7 +42,7 @@ public final class OHealthMusicHook {
         try {
             presenter = XposedHelpers.findClass(PRESENTER, loader);
         } catch (Throwable failure) {
-            android.util.Log.i("OplusBandBridge", "MUSIC native unavailable");
+            HookRuntime.log("MUSIC native unavailable");
             trace("MUSIC_HOOK presenter-missing");
             return;
         }
@@ -77,7 +77,7 @@ public final class OHealthMusicHook {
             // Nothing else loads it until an OPPO watch message arrives.
             XposedHelpers.getStaticObjectField(XposedHelpers.findClass(MANAGER, loader), "INSTANCE");
         } catch (Throwable failure) {
-            android.util.Log.i("OplusBandBridge", "MUSIC native unavailable");
+            HookRuntime.log("MUSIC native unavailable");
             trace("MUSIC_HOOK manager-missing " + failure.getClass().getSimpleName());
         }
     }
@@ -117,7 +117,7 @@ public final class OHealthMusicHook {
             publish(force, state, BandMusicCommand.percent(volume, max),
                     title == null ? "" : title, name == null ? "" : name, position, duration);
         } catch (RuntimeException failure) {
-            android.util.Log.i("OplusBandBridge", "MUSIC native unavailable");
+            HookRuntime.log("MUSIC native unavailable");
         }
     }
 
@@ -145,7 +145,7 @@ public final class OHealthMusicHook {
             lastArtist = artist;
             lastPublishedNanos = System.nanoTime();
         } catch (RuntimeException failure) {
-            android.util.Log.i("OplusBandBridge", "MUSIC native unavailable");
+            HookRuntime.log("MUSIC native unavailable");
             trace("MUSIC_HOOK publish-failed " + failure.getClass().getSimpleName());
         }
     }
@@ -153,20 +153,20 @@ public final class OHealthMusicHook {
     private static void refresh(ClassLoader loader) {
         Object service = service(loader);
         if (service == null) {
-            android.util.Log.i("OplusBandBridge", "MUSIC native unavailable");
+            HookRuntime.log("MUSIC native unavailable");
             return;
         }
         try {
             XposedHelpers.callMethod(service, "onRequestTotalInfo");
         } catch (Throwable failure) {
-            android.util.Log.i("OplusBandBridge", "MUSIC native unavailable");
+            HookRuntime.log("MUSIC native unavailable");
         }
     }
 
     private static void key(ClassLoader loader, int key, int requestedPercent) {
         Object listener = listener(loader);
         if (listener == null || app == null) {
-            android.util.Log.i("OplusBandBridge", "MUSIC native unavailable");
+            HookRuntime.log("MUSIC native unavailable");
             return;
         }
         try {
@@ -188,7 +188,7 @@ public final class OHealthMusicHook {
                 XposedHelpers.callMethod(listener, "dispatchMediaKeyEvent", code);
             }
         } catch (Throwable failure) {
-            android.util.Log.i("OplusBandBridge", "MUSIC native unavailable");
+            HookRuntime.log("MUSIC native unavailable");
         }
     }
 

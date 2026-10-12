@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.miam1ku.mibandoplusbridge.hook;
 
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.HookRuntime;
+
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
-import android.util.Log;
 import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedBridge;
 import io.github.miam1ku.mibandoplusbridge.data.HealthRecord;
 import io.github.miam1ku.mibandoplusbridge.integration.HealthQueueProvider;
@@ -116,7 +117,7 @@ final class OHealthStepWriter {
                     host.deleteRows(api, TABLE_STAT, account, queued, day.startMs, end);
                     host.deleteRows(api, TABLE_DETAIL, account, queued, day.startMs, end);
                 } catch (Exception ignored) {
-                    Log.i("OplusBandBridge", "OHEALTH_STEP_PREVIOUS_DEVICE_KEPT date=" + day.date);
+                    HookRuntime.log("OHEALTH_STEP_PREVIOUS_DEVICE_KEPT date=" + day.date);
                 }
             }
         }
@@ -124,7 +125,7 @@ final class OHealthStepWriter {
         publishSnapshot(context);
         String summary = "OHEALTH_STEP_IMPORT days=" + days.size()
                 + " inserted=" + inserted + " skipped=" + skipped + " chart=" + chart;
-        Log.i("OplusBandBridge", summary);
+        HookRuntime.log(summary);
         XposedBridge.log("OplusBandBridge " + summary);
     }
 
@@ -143,7 +144,7 @@ final class OHealthStepWriter {
                     String miss = "OHEALTH_STEP_STAT_MISS date=" + day.date
                             + " steps=" + day.steps + " cal=" + (day.calories * (long) CALORIE_SCALE)
                             + " move=" + day.moveAbout + " " + summarize(confirmed);
-                    Log.i("OplusBandBridge", miss);
+                    HookRuntime.log(miss);
                     XposedBridge.log("OplusBandBridge " + miss);
                     throw new IllegalStateException("STEP_STAT_UNCONFIRMED");
                 }
@@ -230,7 +231,7 @@ final class OHealthStepWriter {
             } catch (Exception deleteFailed) {
                 // A host delete that cannot be confirmed must not drop the day. The bars below are
                 // upserts, so overlapping minutes are replaced; a stale minute can outlive one pass.
-                Log.i("OplusBandBridge", "OHEALTH_STEP_CHART_DELETE_KEPT date=" + day.date
+                HookRuntime.log("OHEALTH_STEP_CHART_DELETE_KEPT date=" + day.date
                         + " " + deleteFailed);
             }
         }
@@ -332,7 +333,7 @@ final class OHealthStepWriter {
             return true;
         } catch (ReflectiveOperationException | LinkageError unsupported) {
             detailClass = null;
-            Log.i("OplusBandBridge", "OHEALTH_STEP_CHART_UNAVAILABLE");
+            HookRuntime.log("OHEALTH_STEP_CHART_UNAVAILABLE");
             return false;
         }
     }
@@ -407,7 +408,7 @@ final class OHealthStepWriter {
                     .invoke(null, context, values);
         } catch (Throwable failure) {
             String unavailable = "OHEALTH_STEP_CACHE_UNAVAILABLE " + failure.getClass().getSimpleName();
-            Log.i("OplusBandBridge", unavailable);
+            HookRuntime.log(unavailable);
             XposedBridge.log("OplusBandBridge " + unavailable);
         }
     }

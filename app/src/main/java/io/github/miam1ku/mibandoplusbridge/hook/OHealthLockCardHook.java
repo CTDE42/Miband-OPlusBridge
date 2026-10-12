@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.miam1ku.mibandoplusbridge.hook;
 
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.HookRuntime;
+
 import android.content.Context;
 import android.database.Cursor;
 import android.database.MatrixCursor;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.Bundle;
-import android.util.Log;
 import io.github.miam1ku.mibandoplusbridge.hook.xposed.XC_MethodHook;
 import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedHelpers;
 import io.github.miam1ku.mibandoplusbridge.integration.DeviceCardProvider;
@@ -52,7 +53,7 @@ final class OHealthLockCardHook {
             context.getContentResolver().notifyChange(Uri.parse(HEART), null);
             context.getContentResolver().notifyChange(Uri.parse(SPORT), null);
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_LOCK_CARD_NOTIFY " + failure.getClass().getSimpleName());
+            HookRuntime.log("OHEALTH_LOCK_CARD_NOTIFY " + failure.getClass().getSimpleName());
         }
     }
 
@@ -87,7 +88,7 @@ final class OHealthLockCardHook {
             if (result == null || !result.getBoolean("registered", false)) return null;
             return result;
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_LOCK_BAND " + failure.getClass().getSimpleName());
+            HookRuntime.log("OHEALTH_LOCK_BAND " + failure.getClass().getSimpleName());
             return null;
         } finally {
             Binder.restoreCallingIdentity(token);
@@ -97,7 +98,7 @@ final class OHealthLockCardHook {
     private static Cursor heart(Cursor original) {
         Bundle band = band();
         if (band == null) {
-            Log.i("OplusBandBridge", "OHEALTH_LOCK_HEART no-band");
+            HookRuntime.log("OHEALTH_LOCK_HEART no-band");
             return rewind(original);
         }
         int rate = band.getInt("heartRate", -1);
@@ -108,7 +109,7 @@ final class OHealthLockCardHook {
         MatrixCursor out = new MatrixCursor(new String[] {"lastHeartRate"}, 1);
         out.addRow(new Object[] {heartPayload(rate, at)});
         if (original != null) original.close();
-        Log.i("OplusBandBridge", "OHEALTH_LOCK_HEART served");
+        HookRuntime.log("OHEALTH_LOCK_HEART served");
         return out;
     }
 

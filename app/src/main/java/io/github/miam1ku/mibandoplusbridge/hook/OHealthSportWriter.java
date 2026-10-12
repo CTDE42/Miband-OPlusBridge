@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.miam1ku.mibandoplusbridge.hook;
 
+import io.github.miam1ku.mibandoplusbridge.hook.xposed.HookRuntime;
+
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
-import android.util.Log;
 import io.github.miam1ku.mibandoplusbridge.data.HealthRecord;
 import io.github.miam1ku.mibandoplusbridge.integration.HealthQueueProvider;
 import io.github.miam1ku.mibandoplusbridge.protocol.SportReportParser;
@@ -77,7 +78,7 @@ final class OHealthSportWriter {
                     }
                 }
             } catch (Exception failure) {
-                Log.i("OplusBandBridge", "OHEALTH_SPORT_FAIL " + failure.getClass().getSimpleName());
+                HookRuntime.log("OHEALTH_SPORT_FAIL " + failure.getClass().getSimpleName());
             }
         }
     }

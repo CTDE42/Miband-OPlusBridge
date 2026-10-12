@@ -6,7 +6,6 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.content.Context;
 import android.os.Bundle;
-import android.util.Log;
 import io.github.miam1ku.mibandoplusbridge.hook.xposed.XC_MethodHook;
 import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedBridge;
 import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedHelpers;
@@ -88,7 +87,7 @@ public final class TransportProbeHook {
                         metadata.putBoolean("rfcommSecure", method.equals("createRfcommSocketToServiceRecord"));
                         pendingSockets.put(param.getResult(), metadata);
                     } catch (Throwable failure) {
-                        Log.i("OplusBandBridge", "RFCOMM_OBSERVATION_FAILED");
+                        HookRuntime.log("RFCOMM_OBSERVATION_FAILED");
                     }
                 }
             });
@@ -103,13 +102,13 @@ public final class TransportProbeHook {
                         try {
                             context.getContentResolver().call(CredentialProvider.URI, "observeTransport", null, metadata);
                         } catch (RuntimeException rejected) {
-                            Log.i("OplusBandBridge", "RFCOMM_OBSERVATION_REJECTED");
+                            HookRuntime.log("RFCOMM_OBSERVATION_REJECTED");
                         } finally {
                             metadata.clear();
                         }
                     });
                 } catch (RuntimeException rejected) {
-                    Log.i("OplusBandBridge", "RFCOMM_OBSERVATION_QUEUE_FULL");
+                    HookRuntime.log("RFCOMM_OBSERVATION_QUEUE_FULL");
                 }
             }
         });
@@ -119,7 +118,7 @@ public final class TransportProbeHook {
         try {
             observe(context, writer, XposedHelpers.callMethod(connection, getter), null);
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "TRANSPORT_OBSERVATION_FAILED");
+            HookRuntime.log("TRANSPORT_OBSERVATION_FAILED");
         }
     }
 
@@ -158,13 +157,13 @@ public final class TransportProbeHook {
                 try {
                     context.getContentResolver().call(CredentialProvider.URI, "observeTransport", null, metadata);
                 } catch (RuntimeException rejected) {
-                    Log.i("OplusBandBridge", "TRANSPORT_OBSERVATION_REJECTED");
+                    HookRuntime.log("TRANSPORT_OBSERVATION_REJECTED");
                 } finally {
                     metadata.clear();
                 }
             });
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "TRANSPORT_OBSERVATION_FAILED");
+            HookRuntime.log("TRANSPORT_OBSERVATION_FAILED");
         }
     }
 
@@ -185,13 +184,13 @@ public final class TransportProbeHook {
                 try {
                     context.getContentResolver().call(CredentialProvider.URI, "supplementToken", null, payload);
                 } catch (RuntimeException rejected) {
-                    Log.i("OplusBandBridge", "TOKEN_SUPPLEMENT_REJECTED");
+                    HookRuntime.log("TOKEN_SUPPLEMENT_REJECTED");
                 } finally {
                     payload.clear();
                 }
             });
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "TOKEN_SUPPLEMENT_REJECTED");
+            HookRuntime.log("TOKEN_SUPPLEMENT_REJECTED");
         }
     }
 }

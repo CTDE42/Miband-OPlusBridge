@@ -5,7 +5,6 @@ import io.github.miam1ku.mibandoplusbridge.hook.xposed.HookRuntime;
 import android.content.Context;
 import android.os.Bundle;
 import android.os.SystemClock;
-import android.util.Log;
 import io.github.miam1ku.mibandoplusbridge.hook.xposed.XC_MethodHook;
 import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedBridge;
 import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedHelpers;
@@ -61,7 +60,7 @@ public final class ProtocolCaptureHook {
                     capture(context, writer, request, "rx",
                             (byte[]) XposedHelpers.callMethod(param.args[1], "c"), meta);
                 } catch (Throwable failure) {
-                    Log.i("OplusBandBridge", "PROTOCOL_RESPONSE_CAPTURE_FAILED");
+                    HookRuntime.log("PROTOCOL_RESPONSE_CAPTURE_FAILED");
                 }
             }
         });
@@ -84,7 +83,7 @@ public final class ProtocolCaptureHook {
             String address = (String) XposedHelpers.callMethod(info, "getAddress");
             return address != null && address.toUpperCase(Locale.ROOT).equals(request.getString("address")) ? request : null;
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "PROTOCOL_CAPTURE_GATE_FAILED");
+            HookRuntime.log("PROTOCOL_CAPTURE_GATE_FAILED");
             return null;
         }
     }
@@ -119,7 +118,7 @@ public final class ProtocolCaptureHook {
                 captureFault(context, request, "CAPTURE_QUEUE_FULL");
             }
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "PROTOCOL_CAPTURE_FAILED");
+            HookRuntime.log("PROTOCOL_CAPTURE_FAILED");
         }
     }
 
@@ -129,8 +128,8 @@ public final class ProtocolCaptureHook {
             failure.putString("failure", code);
             context.getContentResolver().call(CredentialProvider.URI, "captureFault", null, failure);
         } catch (RuntimeException rejected) {
-            Log.i("OplusBandBridge", "PROTOCOL_CAPTURE_FAULT_NOT_RECORDED");
+            HookRuntime.log("PROTOCOL_CAPTURE_FAULT_NOT_RECORDED");
         }
-        Log.i("OplusBandBridge", code);
+        HookRuntime.log(code);
     }
 }

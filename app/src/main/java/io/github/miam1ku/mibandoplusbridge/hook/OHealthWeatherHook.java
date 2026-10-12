@@ -11,7 +11,6 @@ import android.os.CancellationSignal;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.SystemClock;
-import android.util.Log;
 import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedHelpers;
 import io.github.miam1ku.mibandoplusbridge.HostIdentity;
 import io.github.miam1ku.mibandoplusbridge.integration.WeatherSnapshotProvider;
@@ -111,7 +110,7 @@ public final class OHealthWeatherHook {
                     }
                     if (id != null) fail(context, active, id, unavailable instanceof SecurityException
                             ? "OHEALTH_LOCATION_PERMISSION_REQUIRED" : "OHEALTH_WEATHER_REQUEST_FAILED");
-                    else Log.i("OplusBandBridge", "OHEALTH_WEATHER_PROVIDER_UNAVAILABLE");
+                    else HookRuntime.log("OHEALTH_WEATHER_PROVIDER_UNAVAILABLE");
                 }
             }
         };
@@ -145,7 +144,7 @@ public final class OHealthWeatherHook {
 
     private static void fail(Context context, AtomicReference<String> active, String id, String reason) {
         if (!active.compareAndSet(id, null)) return;
-        Log.i("OplusBandBridge", reason);
+        HookRuntime.log(reason);
         reportFailure(context, id, reason);
     }
 
@@ -156,7 +155,7 @@ public final class OHealthWeatherHook {
             details.putString("status", reason);
             context.getContentResolver().call(WeatherSnapshotProvider.URI, "reportFailure", null, details);
         } catch (RuntimeException ignored) {
-            Log.i("OplusBandBridge", "OHEALTH_WEATHER_REPORT_FAILED");
+            HookRuntime.log("OHEALTH_WEATHER_REPORT_FAILED");
         }
     }
 
@@ -260,7 +259,7 @@ public final class OHealthWeatherHook {
     private static Object required(Object source, String getter) {
         Object value = XposedHelpers.callMethod(source, getter);
         if (value == null) {
-            Log.i("OplusBandBridge", "OHEALTH_WEATHER_FIELD_MISSING " + getter);
+            HookRuntime.log("OHEALTH_WEATHER_FIELD_MISSING " + getter);
             throw new IllegalArgumentException("Missing OHealth weather field");
         }
         return value;

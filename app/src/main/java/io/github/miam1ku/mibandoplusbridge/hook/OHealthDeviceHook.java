@@ -10,7 +10,6 @@ import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.Bundle;
 import android.service.notification.StatusBarNotification;
-import android.util.Log;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Modifier;
 import io.github.miam1ku.mibandoplusbridge.hook.xposed.XC_MethodHook;
@@ -66,7 +65,7 @@ public final class OHealthDeviceHook {
                             if (info != null) combined.add(info);
                             param.args[0] = combined;
                         } catch (Throwable failure) {
-                            Log.i("OplusBandBridge", "OHEALTH_DEVICE_ROW_UNAVAILABLE "
+                            HookRuntime.log("OHEALTH_DEVICE_ROW_UNAVAILABLE "
                                     + failure.getClass().getSimpleName());
                         } finally {
                             APPENDING.set(false);
@@ -74,7 +73,7 @@ public final class OHealthDeviceHook {
                     }
                     @Override protected void afterHookedMethod(MethodHookParam param) {
                         if (param.getThrowable() != null) {
-                            Log.i("OplusBandBridge", "OHEALTH_DEVICE_REFRESH_FAILED "
+                            HookRuntime.log("OHEALTH_DEVICE_REFRESH_FAILED "
                                     + param.getThrowable().getClass().getSimpleName());
                         } else {
                             project(param.thisObject, loader, null, false);
@@ -172,9 +171,9 @@ public final class OHealthDeviceHook {
             Object instance = local.getField("INSTANCE").get(null);
             local.getMethod("saveUserBoundDevice", info.getClass()).invoke(instance, info);
             remembered = key;
-            Log.i("OplusBandBridge", "OHEALTH_DEVICE_REMEMBERED");
+            HookRuntime.log("OHEALTH_DEVICE_REMEMBERED");
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_DEVICE_REMEMBER_FAILED "
+            HookRuntime.log("OHEALTH_DEVICE_REMEMBER_FAILED "
                     + failure.getClass().getSimpleName());
         }
     }
@@ -224,7 +223,7 @@ public final class OHealthDeviceHook {
                         + " connected=" + result.getBoolean("connected"));
             }
             if (result == null && snapshotAttempts < 15) {
-                if (snapshotAttempts == 0) Log.i("OplusBandBridge", "OHEALTH_DEVICE_SNAPSHOT_RETRY");
+                if (snapshotAttempts == 0) HookRuntime.log("OHEALTH_DEVICE_SNAPSHOT_RETRY");
                 snapshotAttempts++;
                 worker.postDelayed(refresh[0], 2_000);
             } else snapshotAttempts = 0;
@@ -239,7 +238,7 @@ public final class OHealthDeviceHook {
             try {
                 HookRuntime.observe(hostContext.getContentResolver(), DeviceCardProvider.URI, true, observer);
             } catch (Throwable failure) {
-                Log.i("OplusBandBridge", "OHEALTH_OBSERVER_UNAVAILABLE " + failure.getClass().getSimpleName());
+                HookRuntime.log("OHEALTH_OBSERVER_UNAVAILABLE " + failure.getClass().getSimpleName());
             }
             refresh[0].run();
         });
@@ -260,7 +259,7 @@ public final class OHealthDeviceHook {
             String detail = failure.getMessage() == null ? "" : failure.getMessage();
             detail = detail.replaceAll("[0-9A-Fa-f]{8,}", "#");
             if (detail.length() > 180) detail = detail.substring(0, 180);
-            Log.i("OplusBandBridge", "OHEALTH_PROVIDER_UNAVAILABLE " + failure.getClass().getSimpleName()
+            HookRuntime.log("OHEALTH_PROVIDER_UNAVAILABLE " + failure.getClass().getSimpleName()
                     + " " + detail);
             return null;
         }
@@ -318,7 +317,7 @@ public final class OHealthDeviceHook {
                 XposedHelpers.callMethod(controller, "refreshWearableDeviceList", seed, new java.util.ArrayList<>(), "band snapshot");
             }
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_DEVICE_ROW_UNAVAILABLE " + failure.getClass().getSimpleName());
+            HookRuntime.log("OHEALTH_DEVICE_ROW_UNAVAILABLE " + failure.getClass().getSimpleName());
         } finally {
             REFRESHING.set(false);
         }
@@ -336,10 +335,10 @@ public final class OHealthDeviceHook {
                 Bundle response = hostContext.getContentResolver().call(DeviceCardProvider.URI, "requestSync", null, null);
                 if (response != null) status = response.getString("status");
             } catch (Throwable failure) {
-                Log.i("OplusBandBridge", "OHEALTH_SYNC_UNAVAILABLE " + failure.getClass().getSimpleName());
+                HookRuntime.log("OHEALTH_SYNC_UNAVAILABLE " + failure.getClass().getSimpleName());
             }
             if ("OPEN_CONFIG_REQUIRED".equals(status)) {
-                Log.i("OplusBandBridge", "OHEALTH_SYNC_DEFERRED");
+                HookRuntime.log("OHEALTH_SYNC_DEFERRED");
             }
         });
     }
@@ -352,7 +351,7 @@ public final class OHealthDeviceHook {
         String model = (String) XposedHelpers.getStaticObjectField(constants, "BAND_DEVICE_MODEL");
         int type = wearableType(constants, model);
         if (type < 0 || model == null || model.isBlank()) {
-            Log.i("OplusBandBridge", "OHEALTH_DEVICE_TYPE_MISSING");
+            HookRuntime.log("OHEALTH_DEVICE_TYPE_MISSING");
             return null;
         }
         Object info = XposedHelpers.newInstance(XposedHelpers.findClass(INFO, loader));
@@ -456,7 +455,7 @@ public final class OHealthDeviceHook {
             items = new ArrayList<>();
             for (String name : HIDE_ITEMS) items.add(WEARABLE_ITEM + name);
             for (String name : NATIVE_PAGES.keySet()) items.add(WEARABLE_ITEM + name);
-            Log.i("OplusBandBridge", "OHEALTH_WEARABLE_SCAN_EMPTY");
+            HookRuntime.log("OHEALTH_WEARABLE_SCAN_EMPTY");
         }
         for (String name : HIDE_ITEMS) {
             String className = WEARABLE_ITEM + name;
@@ -538,7 +537,7 @@ public final class OHealthDeviceHook {
                         }
                     });
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_NOTIFY_EXTRA_UNAVAILABLE "
+            HookRuntime.log("OHEALTH_NOTIFY_EXTRA_UNAVAILABLE "
                     + failure.getClass().getSimpleName());
         }
         try {
@@ -551,7 +550,7 @@ public final class OHealthDeviceHook {
                         }
                     });
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_NOTIFY_DEVICE_UNAVAILABLE "
+            HookRuntime.log("OHEALTH_NOTIFY_DEVICE_UNAVAILABLE "
                     + failure.getClass().getSimpleName());
         }
         try {
@@ -597,11 +596,11 @@ public final class OHealthDeviceHook {
                     Bundle shown = liveSnapshot();
                     String mac = shown == null ? "" : shown.getString("mac", "");
                     if (mac.isBlank()) {
-                        Log.i("OplusBandBridge", "OHEALTH_ACTIVE_MAC empty");
+                        HookRuntime.log("OHEALTH_ACTIVE_MAC empty");
                         return;
                     }
                     param.setResult(mac);
-                    Log.i("OplusBandBridge", "OHEALTH_ACTIVE_MAC filled");
+                    HookRuntime.log("OHEALTH_ACTIVE_MAC filled");
                 }
             });
             java.lang.reflect.Field business = hey.getField("businessApi");
@@ -626,7 +625,7 @@ public final class OHealthDeviceHook {
                 }
             });
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_BOUND_INFO_UNAVAILABLE "
+            HookRuntime.log("OHEALTH_BOUND_INFO_UNAVAILABLE "
                     + failure.getClass().getSimpleName());
         }
         try {
@@ -641,13 +640,13 @@ public final class OHealthDeviceHook {
                                         "com.heytap.health.deviceability.NotificationBaseAbilityDevice",
                                         loader), info));
                             } catch (Throwable failure) {
-                                Log.i("OplusBandBridge", "OHEALTH_NOTIFY_ABILITY_UNAVAILABLE "
+                                HookRuntime.log("OHEALTH_NOTIFY_ABILITY_UNAVAILABLE "
                                         + failure.getClass().getSimpleName());
                             }
                         }
                     });
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_NOTIFY_ABILITY_UNAVAILABLE "
+            HookRuntime.log("OHEALTH_NOTIFY_ABILITY_UNAVAILABLE "
                     + failure.getClass().getSimpleName());
         }
         try {
@@ -683,17 +682,17 @@ public final class OHealthDeviceHook {
                     try {
                         Object vm = XposedHelpers.callMethod(param.thisObject, "getVm");
                         if (!(XposedHelpers.callMethod(vm, "successData") instanceof java.util.List<?>)) {
-                            Log.i("OplusBandBridge", "OHEALTH_NOTIFY_SCREEN empty");
+                            HookRuntime.log("OHEALTH_NOTIFY_SCREEN empty");
                             param.setResult(null);
                         }
                     } catch (Throwable failure) {
-                        Log.i("OplusBandBridge", "OHEALTH_NOTIFY_SCREEN "
+                        HookRuntime.log("OHEALTH_NOTIFY_SCREEN "
                                 + failure.getClass().getSimpleName());
                     }
                 }
             });
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_NOTIFY_SCREEN_UNAVAILABLE "
+            HookRuntime.log("OHEALTH_NOTIFY_SCREEN_UNAVAILABLE "
                     + failure.getClass().getSimpleName());
         }
     }
@@ -725,7 +724,7 @@ public final class OHealthDeviceHook {
                         }
                     });
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_PANEL_FUNCTION_UNAVAILABLE "
+            HookRuntime.log("OHEALTH_PANEL_FUNCTION_UNAVAILABLE "
                     + failure.getClass().getSimpleName());
         }
         try {
@@ -740,7 +739,7 @@ public final class OHealthDeviceHook {
                         }
                     });
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_PANEL_INIT_UNAVAILABLE "
+            HookRuntime.log("OHEALTH_PANEL_INIT_UNAVAILABLE "
                     + failure.getClass().getSimpleName());
         }
         try {
@@ -761,7 +760,7 @@ public final class OHealthDeviceHook {
                         }
                     });
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_PANEL_DATA_UNAVAILABLE "
+            HookRuntime.log("OHEALTH_PANEL_DATA_UNAVAILABLE "
                     + failure.getClass().getSimpleName());
         }
         try {
@@ -789,7 +788,7 @@ public final class OHealthDeviceHook {
                         }
                     });
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_PANEL_APP_UNAVAILABLE "
+            HookRuntime.log("OHEALTH_PANEL_APP_UNAVAILABLE "
                     + failure.getClass().getSimpleName());
         }
         try {
@@ -803,7 +802,7 @@ public final class OHealthDeviceHook {
                         }
                     });
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_PANEL_WATCHFACE_UNAVAILABLE "
+            HookRuntime.log("OHEALTH_PANEL_WATCHFACE_UNAVAILABLE "
                     + failure.getClass().getSimpleName());
         }
         try {
@@ -865,10 +864,10 @@ public final class OHealthDeviceHook {
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
             activity.startActivity(intent);
             activity.finish();
-            Log.i("OplusBandBridge", "OHEALTH_PANEL_OPEN_APP");
+            HookRuntime.log("OHEALTH_PANEL_OPEN_APP");
             return true;
         } catch (RuntimeException failure) {
-            Log.i("OplusBandBridge", "OHEALTH_PANEL_OPEN_APP_UNAVAILABLE "
+            HookRuntime.log("OHEALTH_PANEL_OPEN_APP_UNAVAILABLE "
                     + failure.getClass().getSimpleName());
             return false;
         }
@@ -883,10 +882,10 @@ public final class OHealthDeviceHook {
             XposedHelpers.setIntField(vm, "mCurrBattery", battery >= 0 && battery <= 100 ? battery : 0);
             XposedHelpers.setBooleanField(vm, "mCharge", shown.getBoolean("charging"));
             XposedHelpers.setIntField(vm, "mConnectStatus", shown.getBoolean("connected") ? 102 : 103);
-            Log.i("OplusBandBridge", "OHEALTH_PANEL_STATE connected=" + shown.getBoolean("connected")
+            HookRuntime.log("OHEALTH_PANEL_STATE connected=" + shown.getBoolean("connected")
                     + " battery=" + battery);
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_PANEL_STATE_UNAVAILABLE "
+            HookRuntime.log("OHEALTH_PANEL_STATE_UNAVAILABLE "
                     + failure.getClass().getSimpleName());
         }
     }
@@ -915,7 +914,7 @@ public final class OHealthDeviceHook {
             }
             if (changed) XposedHelpers.callMethod(live, "postValue", kept);
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_PANEL_FILTER_UNAVAILABLE "
+            HookRuntime.log("OHEALTH_PANEL_FILTER_UNAVAILABLE "
                     + failure.getClass().getSimpleName());
         }
     }
@@ -952,7 +951,7 @@ public final class OHealthDeviceHook {
         try {
             infoType = XposedHelpers.findClass("com.oplus.mydevices.sdk.device.DeviceInfo", loader);
         } catch (Throwable missing) {
-            Log.i("OplusBandBridge", "DEVICE_SPACE_GUARD_UNAVAILABLE");
+            HookRuntime.log("DEVICE_SPACE_GUARD_UNAVAILABLE");
             return;
         }
         XC_MethodHook patch = new XC_MethodHook() {
@@ -987,7 +986,7 @@ public final class OHealthDeviceHook {
                     "updateDeviceState", infoType, boolean.class, patch);
             hooked++;
         } catch (Throwable ignored) { }
-        Log.i("OplusBandBridge", hooked == 0 ? "DEVICE_SPACE_GUARD_UNAVAILABLE" : "DEVICE_SPACE_GUARD " + hooked);
+        HookRuntime.log(hooked == 0 ? "DEVICE_SPACE_GUARD_UNAVAILABLE" : "DEVICE_SPACE_GUARD " + hooked);
     }
 
     private static volatile Boolean yielded;
@@ -1011,9 +1010,9 @@ public final class OHealthDeviceHook {
             extras.putBoolean("yield", present);
             hostContext.getContentResolver().call(DeviceCardProvider.URI, "spaceYield", null, extras);
             yielded = present;
-            Log.i("OplusBandBridge", "DEVICE_SPACE_YIELD " + present);
+            HookRuntime.log("DEVICE_SPACE_YIELD " + present);
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "DEVICE_SPACE_YIELD_UNAVAILABLE "
+            HookRuntime.log("DEVICE_SPACE_YIELD_UNAVAILABLE "
                     + failure.getClass().getSimpleName());
         }
     }
@@ -1027,7 +1026,7 @@ public final class OHealthDeviceHook {
                 uri, new String[] {"device_id"}, "device_id=?", new String[] {id}, null)) {
             return cursor != null && cursor.moveToFirst() && id.equals(cursor.getString(0));
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "DEVICE_SPACE_LOOKUP_UNAVAILABLE "
+            HookRuntime.log("DEVICE_SPACE_LOOKUP_UNAVAILABLE "
                     + failure.getClass().getSimpleName());
             return false;
         }
@@ -1048,7 +1047,7 @@ public final class OHealthDeviceHook {
             pushedBattery = battery;
             pushedConnected = connected;
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "DEVICE_SPACE_REFRESH_UNAVAILABLE "
+            HookRuntime.log("DEVICE_SPACE_REFRESH_UNAVAILABLE "
                     + failure.getClass().getSimpleName());
         }
     }
@@ -1116,7 +1115,7 @@ public final class OHealthDeviceHook {
             batteries.add(cell);
             XposedHelpers.callMethod(info, "setBatteryInfoList", batteries);
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_PANEL_SDK_UNAVAILABLE "
+            HookRuntime.log("OHEALTH_PANEL_SDK_UNAVAILABLE "
                     + failure.getClass().getSimpleName());
         }
     }
@@ -1151,7 +1150,7 @@ public final class OHealthDeviceHook {
                 }
             });
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_NATIVE_PAGE_UNAVAILABLE "
+            HookRuntime.log("OHEALTH_NATIVE_PAGE_UNAVAILABLE "
                     + failure.getClass().getSimpleName());
         }
     }
@@ -1181,7 +1180,7 @@ public final class OHealthDeviceHook {
                             }
                         });
             } catch (Throwable failure) {
-                Log.i("OplusBandBridge", "OHEALTH_WATCH_FACE_HOOK_UNAVAILABLE "
+                HookRuntime.log("OHEALTH_WATCH_FACE_HOOK_UNAVAILABLE "
                         + failure.getClass().getSimpleName());
             }
         } else {
@@ -1192,7 +1191,7 @@ public final class OHealthDeviceHook {
                     }
                 });
             } catch (Throwable failure) {
-                Log.i("OplusBandBridge", "OHEALTH_WATCH_FACE_HOOK_UNAVAILABLE "
+                HookRuntime.log("OHEALTH_WATCH_FACE_HOOK_UNAVAILABLE "
                         + failure.getClass().getSimpleName());
             }
         }
@@ -1200,7 +1199,7 @@ public final class OHealthDeviceHook {
             Class<?> data = XposedHelpers.findClass(dataType, loader);
             XposedHelpers.findAndHookMethod(className, loader, "initData", data, hideRow);
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_WATCH_FACE_ROW_UNAVAILABLE "
+            HookRuntime.log("OHEALTH_WATCH_FACE_ROW_UNAVAILABLE "
                     + failure.getClass().getSimpleName());
         }
         if ("DeviceWatchFaceItem".equals(className.substring(className.lastIndexOf('.') + 1))) {
@@ -1224,7 +1223,7 @@ public final class OHealthDeviceHook {
                     forwardHostNotification(param.args[0], false);
                 }
             });
-            Log.i("OplusBandBridge", "OHEALTH_NOTIFICATION_HOOK process="
+            HookRuntime.log("OHEALTH_NOTIFICATION_HOOK process="
                     + android.app.Application.getProcessName());
             trace("OHEALTH_NOTIFICATION_HOOK process=" + android.app.Application.getProcessName());
             XposedHelpers.findAndHookMethod(center, loader, "onNotificationRemoved", bean, new XC_MethodHook() {
@@ -1257,7 +1256,7 @@ public final class OHealthDeviceHook {
                             }
                         });
             } catch (Throwable failure) {
-                Log.i("OplusBandBridge", "OHEALTH_INTERCEPT_MESSAGE_UNAVAILABLE "
+                HookRuntime.log("OHEALTH_INTERCEPT_MESSAGE_UNAVAILABLE "
                         + failure.getClass().getSimpleName());
             }
             installPolicyPush(loader);
@@ -1270,7 +1269,7 @@ public final class OHealthDeviceHook {
                         }
                     });
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_NOTIFICATION_HOOK_UNAVAILABLE "
+            HookRuntime.log("OHEALTH_NOTIFICATION_HOOK_UNAVAILABLE "
                     + failure.getClass().getSimpleName());
         }
     }
@@ -1340,7 +1339,7 @@ public final class OHealthDeviceHook {
             }
             ALLOWLIST.execute(() -> deliverForward(bean, removed, process, pkg, key, when, title, body));
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_NOTIFICATION_FORWARD_FAILED "
+            HookRuntime.log("OHEALTH_NOTIFICATION_FORWARD_FAILED "
                     + failure.getClass().getSimpleName());
             trace("OHEALTH_NOTIFICATION_FORWARD_FAILED " + failure.getClass().getSimpleName());
         }
@@ -1398,10 +1397,10 @@ public final class OHealthDeviceHook {
             Bundle result = hostContext.getContentResolver().call(
                     io.github.miam1ku.mibandoplusbridge.integration.HostNotifyProvider.URI, "forward", null, extras);
             String status = result == null ? "NULL" : result.getString("status", "");
-            Log.i("OplusBandBridge", "OHEALTH_NOTIFICATION_FORWARD removed=" + removed
+            HookRuntime.log("OHEALTH_NOTIFICATION_FORWARD removed=" + removed
                     + " call=" + call + " pkg=" + pkg + " status=" + status);
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_NOTIFICATION_FORWARD_FAILED "
+            HookRuntime.log("OHEALTH_NOTIFICATION_FORWARD_FAILED "
                     + failure.getClass().getSimpleName());
             trace("OHEALTH_NOTIFICATION_FORWARD_FAILED " + failure.getClass().getSimpleName());
         }
@@ -1449,7 +1448,7 @@ public final class OHealthDeviceHook {
                     "forward", null, extras);
             return true;
         } catch (RuntimeException failure) {
-            android.util.Log.i("OplusBandBridge", "CLOCK_ALARM_FORWARD_FAILED "
+            HookRuntime.log("CLOCK_ALARM_FORWARD_FAILED "
                     + failure.getClass().getSimpleName());
             return true;
         }
@@ -1535,7 +1534,7 @@ public final class OHealthDeviceHook {
             Object offOrLocked = XposedHelpers.callMethod(utils, "isScreenOffOrLocked", hostContext);
             return !Boolean.TRUE.equals(offOrLocked);
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_NOTIFICATION_SCREEN_UNAVAILABLE "
+            HookRuntime.log("OHEALTH_NOTIFICATION_SCREEN_UNAVAILABLE "
                     + failure.getClass().getSimpleName());
             return false;
         }
@@ -1602,7 +1601,7 @@ public final class OHealthDeviceHook {
             }
             schedulePolicy(3_000);
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_POLICY_PUSH_UNAVAILABLE " + failure.getClass().getSimpleName());
+            HookRuntime.log("OHEALTH_POLICY_PUSH_UNAVAILABLE " + failure.getClass().getSimpleName());
             trace("OHEALTH_POLICY_PUSH_UNAVAILABLE " + failure.getClass().getSimpleName());
         }
     }
@@ -1622,7 +1621,7 @@ public final class OHealthDeviceHook {
         int attempt = policyAttempts.incrementAndGet();
         if (attempt > MAX_POLICY_ATTEMPTS) {
             String line = "OHEALTH_POLICY_PUSH_STOPPED attempts=" + MAX_POLICY_ATTEMPTS + " reason=" + reason;
-            Log.i("OplusBandBridge", line);
+            HookRuntime.log(line);
             trace(line);
             return;
         }
@@ -1696,12 +1695,12 @@ public final class OHealthDeviceHook {
                     "policySnapshot", null, extras);
             String pushed = "OHEALTH_POLICY_PUSH main=" + main + " screen=" + screen
                     + " open=" + open.size() + " closed=" + closed.size();
-            Log.i("OplusBandBridge", pushed);
+            HookRuntime.log(pushed);
             trace(pushed);
         } catch (Throwable failure) {
             String detail = String.valueOf(failure);
             if (detail.length() > 180) detail = detail.substring(0, 180);
-            Log.i("OplusBandBridge", "OHEALTH_POLICY_PUSH_FAILED " + detail);
+            HookRuntime.log("OHEALTH_POLICY_PUSH_FAILED " + detail);
             trace("OHEALTH_POLICY_PUSH_FAILED " + failure.getClass().getSimpleName());
             if (generation == policyGeneration.get()) retryPolicy(failure.getClass().getSimpleName());
         }
@@ -1740,7 +1739,7 @@ public final class OHealthDeviceHook {
         String line = "OHEALTH_ALLOWLIST_UNAVAILABLE " + kind;
         if (line.equals(lastAllowlist)) return;
         lastAllowlist = line;
-        Log.i("OplusBandBridge", line);
+        HookRuntime.log(line);
         trace(line);
     }
 
@@ -1750,7 +1749,7 @@ public final class OHealthDeviceHook {
         String line = reason + "|" + pkg + "|" + process;
         if (line.equals(lastNotifyDrop)) return;
         lastNotifyDrop = line;
-        Log.i("OplusBandBridge", "OHEALTH_NOTIFICATION_DROP reason=" + reason
+        HookRuntime.log("OHEALTH_NOTIFICATION_DROP reason=" + reason
                 + " pkg=" + (pkg == null || pkg.isBlank() ? "none" : pkg)
                 + " process=" + process);
         trace("OHEALTH_NOTIFICATION_DROP reason=" + reason

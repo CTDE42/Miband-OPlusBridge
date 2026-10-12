@@ -6,7 +6,6 @@ import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Log;
 import io.github.miam1ku.mibandoplusbridge.hook.xposed.XC_MethodHook;
 import io.github.miam1ku.mibandoplusbridge.hook.xposed.XposedBridge;
 import java.lang.reflect.Method;
@@ -34,7 +33,7 @@ public final class OHealthHomeMetricHook {
                     CARDS.put(card, Boolean.TRUE);
                 }
             } catch (Throwable failure) {
-                Log.i("OplusBandBridge", "OHEALTH_HOME_RELOAD_HOOK_FAIL");
+                HookRuntime.log("OHEALTH_HOME_RELOAD_HOOK_FAIL");
             }
         }
     };
@@ -47,7 +46,7 @@ public final class OHealthHomeMetricHook {
         try {
             base = Class.forName(BASE, false, loader);
         } catch (Throwable failure) {
-            Log.i("OplusBandBridge", "OHEALTH_HOME_RELOAD_HOOK_FAIL");
+            HookRuntime.log("OHEALTH_HOME_RELOAD_HOOK_FAIL");
             return;
         }
         hookBind(base);
@@ -74,7 +73,7 @@ public final class OHealthHomeMetricHook {
                     }
                 }
             } catch (Throwable failure) {
-                Log.i("OplusBandBridge", "OHEALTH_HOME_RELOAD_HOOK_FAIL");
+                HookRuntime.log("OHEALTH_HOME_RELOAD_HOOK_FAIL");
             }
         }
     }
@@ -103,13 +102,13 @@ public final class OHealthHomeMetricHook {
                 if (refresh == null) refresh = declaredVoid(type, "refreshViewIfNeed");
                 if (refresh == null) {
                     if (declares(type, "refresh") || declares(type, "refreshViewIfNeed")) {
-                        Log.i("OplusBandBridge", "OHEALTH_HOME_RELOAD_SKIP " + type.getName());
+                        HookRuntime.log("OHEALTH_HOME_RELOAD_SKIP " + type.getName());
                     }
                     continue;
                 }
                 refresh.invoke(card);
             } catch (Throwable failure) {
-                Log.i("OplusBandBridge", "OHEALTH_HOME_RELOAD_FAIL " + type.getName());
+                HookRuntime.log("OHEALTH_HOME_RELOAD_FAIL " + type.getName());
             }
         }
     }
@@ -120,7 +119,7 @@ public final class OHealthHomeMetricHook {
             try {
                 XposedBridge.hookAllMethods(type, "onCommonBindViewHolder", BIND);
             } catch (Throwable failure) {
-                Log.i("OplusBandBridge", "OHEALTH_HOME_RELOAD_HOOK_FAIL");
+                HookRuntime.log("OHEALTH_HOME_RELOAD_HOOK_FAIL");
             }
             return;
         }
