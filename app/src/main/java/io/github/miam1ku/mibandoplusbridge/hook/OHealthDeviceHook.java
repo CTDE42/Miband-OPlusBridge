@@ -210,6 +210,7 @@ public final class OHealthDeviceHook {
                 for (Object controller : liveControllers()) {
                     project(controller, loader, previous, true);
                 }
+                worker.post(() -> dropDuplicateSpaceCard(loader));
             });
             // The first provider call often races process start. A miss used to leave the device tab empty.
             boolean giveUp = result == null && snapshotAttempts >= 14;
@@ -821,6 +822,7 @@ public final class OHealthDeviceHook {
                         }
                     });
         } catch (Throwable ignored) { }
+        guardDuplicateSpaceCard(loader);
     }
 
     private static Bundle liveSnapshot() {
@@ -942,6 +944,108 @@ public final class OHealthDeviceHook {
             Object adapter = XposedHelpers.getObjectField(panel, adapterField);
             if (adapter != null) XposedHelpers.callMethod(adapter, "notifyDataSetChanged");
         } catch (Throwable ignored) { }
+    }
+
+    /**
+     * Health writes this band into device space as its own card (MAC 的 MD5，类型是手环，但是断开的)。
+     * The bridge already publishes the live card, so the same band shows twice.
+     */
+    private static void guardDuplicateSpaceCard(ClassLoader loader) {
+        Class<?> infoType;
+        try {
+            infoType = XposedHelpers.findClass("com.oplus.mydevices.sdk.device.DeviceInfo", loader);
+        } catch (Throwable missing) {
+            Log.i("OplusBandBridge", "DEVICE_SPACE_GUARD_UNAVAILABLE");
+            return;
+        }
+        XC_MethodHook block = new XC_MethodHook() {
+            @Override protected void beforeHookedMethod(MethodHookParam param) {
+                if (param.args.length == 0 || !duplicateSpaceCard(param.args[0])) return;
+                Class<?> returned = ((java.lang.reflect.Method) param.method).getReturnType();
+                param.setResult(returned == boolean.class ? Boolean.FALSE : null);
+            }
+        };
+        int hooked = 0;
+        for (String typeName : new String[]{
+                "com.oplus.mydevices.sdk.internal.DeviceRepositoryImpl",
+                "com.oplus.mydevices.sdk.DeviceInfoManager"}) {
+            Class<?> type;
+            try {
+                type = XposedHelpers.findClass(typeName, loader);
+            } catch (Throwable missing) {
+                continue;
+            }
+            for (java.lang.reflect.Method method : type.getDeclaredMethods()) {
+                String name = method.getName();
+                if (!name.equals("add") && !name.equals("update") && !name.equals("insertOrUpdate")
+                        && !name.equals("insertOrUpdateOnly") && !name.equals("insertOrUpdateDevice")) continue;
+                if (method.getParameterCount() < 1 || !infoType.isAssignableFrom(method.getParameterTypes()[0])) continue;
+                XposedBridge.hookMethod(method, block);
+                hooked++;
+            }
+        }
+        try {
+            XposedHelpers.findAndHookMethod(
+                    "com.heytap.health.linkage.watch.WatchController", loader,
+                    "updateDeviceState", infoType, boolean.class, block);
+            hooked++;
+        } catch (Throwable ignored) { }
+        Log.i("OplusBandBridge", hooked == 0 ? "DEVICE_SPACE_GUARD_UNAVAILABLE" : "DEVICE_SPACE_GUARD " + hooked);
+    }
+
+    private static volatile String droppedMac;
+
+    private static void dropDuplicateSpaceCard(ClassLoader loader) {
+        Bundle shown = snapshot;
+        if (shown == null || !shown.getBoolean("registered", false) || hostContext == null) return;
+        String mac = shown.getString("mac", "");
+        if (mac.isBlank() || mac.equalsIgnoreCase(droppedMac)) return;
+        String id = healthCardId(mac);
+        if (id.isEmpty()) return;
+        try {
+            android.net.Uri uri = android.net.Uri.parse(
+                    "content://com.heytap.health.WatchProvider/device_info_table_new");
+            int rows = hostContext.getContentResolver().delete(uri, "device_id=?", new String[] {id});
+            try {
+                Class<?> managerType = XposedHelpers.findClass(
+                        "com.oplus.mydevices.sdk.DeviceInfoManager", loader);
+                Object manager = XposedHelpers.callStaticMethod(managerType, "getInstance");
+                XposedHelpers.callMethod(manager, "notifyCardRemoved", java.util.Collections.singletonList(id));
+            } catch (Throwable ignored) { }
+            if (rows > 0) {
+                droppedMac = mac;
+                Log.i("OplusBandBridge", "DEVICE_SPACE_DUPLICATE_REMOVED " + rows);
+            }
+        } catch (Throwable failure) {
+            Log.i("OplusBandBridge", "DEVICE_SPACE_DUPLICATE_UNAVAILABLE "
+                    + failure.getClass().getSimpleName());
+        }
+    }
+
+    /** Health's device-space id is the MD5 of the MAC text, uppercase colons included. */
+    private static String healthCardId(String mac) {
+        try {
+            byte[] digest = java.security.MessageDigest.getInstance("MD5")
+                    .digest(mac.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(digest.length * 2);
+            for (byte value : digest) hex.append(String.format(java.util.Locale.US, "%02x", value & 0xff));
+            return hex.toString();
+        } catch (java.security.NoSuchAlgorithmException missing) {
+            return "";
+        }
+    }
+
+    /** Health's card for this band. The bridge card lives in another process and never reaches here. */
+    private static boolean duplicateSpaceCard(Object info) {
+        Bundle shown = liveSnapshot();
+        if (shown == null || info == null || !shown.getBoolean("registered", false)) return false;
+        try {
+            return io.github.miam1ku.mibandoplusbridge.data.MacIds.same(
+                    shown.getString("mac", ""),
+                    String.valueOf(XposedHelpers.callMethod(info, "getMacAddress")));
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     private static void patchSdkDevice(Object info, Bundle shown) {

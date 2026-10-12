@@ -240,7 +240,6 @@ public final class MyDevicesHook {
 
     /**
      * 设备中心按「提供这台设备的包名」找图标插件。桥接包没有插件，就落到默认手机图。
-     * 控制中心不走这条，直接按设备类型用自带的手表图。
      * 查到的是这只手环时，改用健康的包名，这样用到的是健康已经登记的那套图。
      */
     private static void hookIconPackage(ClassLoader loader) {
@@ -292,7 +291,7 @@ public final class MyDevicesHook {
 
     /**
      * 设备中心的占位图方法签名是 {@code (String, DeviceType, Integer) -> int}，类名会随版本变。
-     * 插件没登记时它返回 {@code icon_default_device}。这只手环改成设备空间自带的手表图。
+     * 插件没登记时它返回 {@code icon_default_device}。手环用 {@code default_wristband}，手表形态用 {@code default_watch}。
      */
     private static void hookPlaceholderIcon(Context context, ClassLoader loader) {
         Class<?> deviceType;
@@ -303,7 +302,8 @@ public final class MyDevicesHook {
             return;
         }
         int watch = context.getResources().getIdentifier("default_watch", "drawable", "com.heytap.mydevices");
-        if (watch == 0) {
+        int band = context.getResources().getIdentifier("default_wristband", "drawable", "com.heytap.mydevices");
+        if (watch == 0 && band == 0) {
             Log.i(TAG, "ICON_PLACEHOLDER_HOOK_UNAVAILABLE");
             return;
         }
@@ -331,8 +331,9 @@ public final class MyDevicesHook {
                                 || params[2] != Integer.class) continue;
                         XposedBridge.hookMethod(method, new XC_MethodHook() {
                             @Override protected void beforeHookedMethod(MethodHookParam param) {
-                                if (!wearableLookup(param.args)) return;
-                                param.setResult(watch);
+                                int icon = placeholderIcon(param.args, watch, band);
+                                if (icon == 0) return;
+                                param.setResult(icon);
                             }
                         });
                         hooked++;
@@ -344,16 +345,18 @@ public final class MyDevicesHook {
         Log.i(TAG, hooked == 0 ? "ICON_PLACEHOLDER_HOOK_UNAVAILABLE" : "ICON_PLACEHOLDER_HOOK " + hooked);
     }
 
-    private static boolean wearableLookup(Object[] args) {
-        if (args == null || args.length < 2 || args[1] == null) return false;
+    private static int placeholderIcon(Object[] args, int watch, int band) {
+        if (args == null || args.length < 2 || args[1] == null) return 0;
         String pkg = args[0] instanceof String text ? text : "";
-        if (!PACKAGE.equals(pkg) && !NativePanel.HEALTH.equals(pkg)) return false;
+        if (!PACKAGE.equals(pkg) && !NativePanel.HEALTH.equals(pkg)) return 0;
         try {
             String typeName = String.valueOf(XposedHelpers.callMethod(args[1], "getTypeName"));
-            return "watch".equals(typeName) || "wristband".equals(typeName);
+            if ("wristband".equals(typeName)) return band != 0 ? band : watch;
+            if ("watch".equals(typeName)) return watch != 0 ? watch : band;
         } catch (Throwable ignored) {
-            return false;
+            return 0;
         }
+        return 0;
     }
 
 

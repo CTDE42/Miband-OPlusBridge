@@ -144,11 +144,11 @@ public final class DeviceCardProvider extends ContentProvider {
                         state.getString("modelId", ""), state.getString("name", "")))
                 .put("mMacAddress", mac)
                 .put("modelId", NativePanel.BAND_MODEL)
-                // 设备中心图片地址为空时用 icon_default_device，看起来像手机。
-                // 控制中心不读这张图，只按类型画自带的手环标。
-                .put("mDeviceType", "WATCH")
-                .put("iconUrl", "android.resource://com.heytap.mydevices/drawable/default_watch")
-                .put("mIconUrl", "android.resource://com.heytap.mydevices/drawable/default_watch")
+                // 图片地址空着时设备空间用 icon_default_device，看起来像手机。
+                // 手环用系统自带的手环图，手表形态才用手表图。
+                .put("mDeviceType", BandCatalog.spaceType(state.getString("modelId", "")))
+                .put("iconUrl", spaceIcon(state))
+                .put("mIconUrl", spaceIcon(state))
                 .put("mBatteryInfoList", batteries)
                 .put("mBatteryList", levels)
                 .put("connection", connection)
@@ -163,6 +163,11 @@ public final class DeviceCardProvider extends ContentProvider {
                 .put("autoSwitch", false)
                 .put("revision", state.getLong("revision", 0));
         return data;
+    }
+
+    private static String spaceIcon(io.github.miam1ku.mibandoplusbridge.data.LocalPrefs state) {
+        return "android.resource://com.heytap.mydevices/drawable/"
+                + BandCatalog.spaceIcon(state.getString("modelId", ""));
     }
 
     @Override public String getType(Uri uri) {

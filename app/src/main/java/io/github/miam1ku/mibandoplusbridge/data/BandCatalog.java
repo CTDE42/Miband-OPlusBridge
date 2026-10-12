@@ -34,19 +34,83 @@ public final class BandCatalog {
         return leftover != null ? leftover : "小米手环";
     }
 
+    /** Longest prefix wins. The last column is the device-space card: band or watch. */
+    private static final String[][] MODELS = {
+            {"lchz.watch.m67ys", "小米手环8 Pro 原神定制版", "band"},
+            {"lchz.watch.m67", "小米手环8 Pro", "band"},
+            {"miwear.watch.m66nfc", "小米手环8 NFC", "band"},
+            {"lchz.watch.m66", "小米手环8", "band"},
+            {"miwear.watch.m66", "小米手环8", "band"},
+            {"mijia.watch.m69b", "小米手环8 活力版", "band"},
+            {"miwear.watch.n66tc", "小米手环9 陶瓷特别版", "band"},
+            {"miwear.watch.n66nfc", "小米手环9 NFC", "band"},
+            {"miwear.watch.n66", "小米手环9", "band"},
+            {"lchz.watch.n67", "小米手环9 Pro", "band"},
+            {"miwear.watch.n67", "小米手环9 Pro", "band"},
+            {"mijia.watch.n69", "Redmi手环3", "band"},
+            {"miwear.watch.n69", "Redmi手环3", "band"},
+            {"miwear.watch.o66nfc", "小米手环10 NFC", "band"},
+            {"miwear.watch.o66gln", "小米手环10 NFC", "band"},
+            {"miwear.watch.o66tc", "小米手环10 陶瓷版", "band"},
+            {"miwear.watch.o66lj", "小米手环10 耀影金特别版", "band"},
+            {"miwear.watch.o66", "小米手环10", "band"},
+            {"miwear.watch.p67tc", "小米手环10 Pro 陶瓷版", "band"},
+            {"miwear.watch.p67gln", "小米手环10 Pro NFC", "band"},
+            {"miwear.watch.p67", "小米手环10 Pro", "band"},
+            {"miwear.watch.q66nfc", "小米手环11 NFC", "band"},
+            {"miwear.watch.q66tc", "小米手环11 陶瓷版", "band"},
+            {"miwear.watch.q66", "小米手环11", "band"},
+            {"mijia.watch.band01", "Redmi手环", "band"},
+            {"mijia.watch.m69", "Redmi手环2", "band"},
+            {"hqbd3.watch.l67", "小米手环7 Pro", "watch"},
+            {"mijia.watch.n62lte", "小米手表 S3 eSIM", "watch"},
+            {"mijia.watch.n62car", "小米手表 S3 SU7 限定版", "watch"},
+            {"mijia.watch.n62cg", "小米手表 S3 SU7 限定版", "watch"},
+            {"mijia.watch.n62s", "小米手表 S4 Sport", "watch"},
+            {"mijia.watch.n62", "小米手表 S3", "watch"},
+            {"mijia.watch.o62lte", "小米手表 S4 eSIM", "watch"},
+            {"mijia.watch.o62m", "小米手表 S4 15周年版", "watch"},
+            {"mijia.watch.o62", "小米手表 S4", "watch"},
+            {"miwear.watch.o63", "小米手表 S4", "watch"},
+            {"miwear.watch.p62lte", "小米手表 S5 eSIM", "watch"},
+            {"miwear.watch.p62", "小米手表 S5", "watch"},
+            {"mijia.watch.l61", "小米手表 S1 Pro", "watch"},
+            {"lchz.watch.n65", "REDMI Watch 4", "watch"},
+            {"miwear.watch.o65m", "REDMI Watch 5 eSIM", "watch"},
+            {"miwear.watch.o65", "REDMI Watch 5", "watch"},
+            {"miwear.watch.p65", "REDMI Watch 6", "watch"},
+            {"miwear.watch.q65", "REDMI Watch 6 活力版", "watch"},
+    };
+
+    /** Device-space card type. Bands use the system wristband glyph, watches use the watch glyph. */
+    public static String spaceType(String model) {
+        return watchForm(model) ? "WATCH" : "WRISTBAND";
+    }
+
+    /** Drawable name in {@code com.heytap.mydevices}. Empty iconUrl falls back to a phone. */
+    public static String spaceIcon(String model) {
+        return watchForm(model) ? "default_watch" : "default_wristband";
+    }
+
+    public static boolean watchForm(String model) {
+        String[] row = match(model);
+        return row != null && "watch".equals(row[2]);
+    }
+
     static String fromModelId(String model) {
+        String[] row = match(model);
+        return row == null ? null : row[1];
+    }
+
+    private static String[] match(String model) {
         if (model == null || model.isBlank()) return null;
         String id = model.trim().toLowerCase(Locale.ROOT);
-        if (id.startsWith("miwear.watch.q66")) return nfc(id, "小米手环11");
-        if (id.startsWith("miwear.watch.p67")) return "小米手环10 Pro";
-        if (id.startsWith("miwear.watch.o66")) return nfc(id, "小米手环10");
-        if (id.startsWith("miwear.watch.n67") || id.startsWith("lchz.watch.n67")) return "小米手环9 Pro";
-        if (id.startsWith("miwear.watch.n66")) return nfc(id, "小米手环9");
-        if (id.startsWith("miwear.watch.n69") || id.startsWith("mijia.watch.n69")) return "小米手环9 活力版";
-        if (id.startsWith("lchz.watch.m67")) return "小米手环8 Pro";
-        if (id.startsWith("miwear.watch.m66") || id.startsWith("lchz.watch.m66")) return nfc(id, "小米手环8");
-        if (id.startsWith("mijia.watch.m69b")) return "小米手环8 活力版";
-        return null;
+        String[] best = null;
+        for (String[] row : MODELS) {
+            if (!id.startsWith(row[0])) continue;
+            if (best == null || row[0].length() > best[0].length()) best = row;
+        }
+        return best;
     }
 
     static String fromAdvertisedName(String raw) {
@@ -64,11 +128,6 @@ public final class BandCatalog {
             return "红米手环" + variant;
         }
         return null;
-    }
-
-    private static String nfc(String id, String base) {
-        if (id.contains("nfc") || id.endsWith("gln")) return base + " NFC";
-        return base;
     }
 
     private static String labeled(String generation, String variant) {

@@ -4,10 +4,13 @@ package io.github.miam1ku.mibandoplusbridge.service;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.database.ContentObserver;
+import android.graphics.drawable.Icon;
 import android.os.Handler;
 import android.os.Looper;
 import android.service.quicksettings.Tile;
 import android.service.quicksettings.TileService;
+import io.github.miam1ku.mibandoplusbridge.R;
+import io.github.miam1ku.mibandoplusbridge.data.BandCatalog;
 import io.github.miam1ku.mibandoplusbridge.data.BandStateRepository;
 import io.github.miam1ku.mibandoplusbridge.data.LocalPrefs;
 import io.github.miam1ku.mibandoplusbridge.integration.DeviceCardProvider;
@@ -57,18 +60,22 @@ public final class BandTileService extends TileService {
         boolean registered = false;
         boolean connected = false;
         int battery = -1;
+        String model = "";
         try {
             registered = new BandStateRepository(this).isRegistered();
             if (registered) {
                 LocalPrefs state = LocalPrefs.open(this, "band-state");
                 connected = state.getBoolean("connected", false);
                 battery = state.getInt("battery", -1);
+                model = state.getString("modelId", "");
             }
         } catch (RuntimeException ignored) {
             registered = false;
         }
         BandTileState.View view = BandTileState.of(
                 registered, BandLiveService.isRunning(), connected, battery);
+        tile.setIcon(Icon.createWithResource(this,
+                BandCatalog.watchForm(model) ? R.drawable.ic_qs_watch : R.drawable.ic_qs_band));
         tile.setState(view.state());
         tile.setSubtitle(view.subtitle());
         tile.updateTile();
