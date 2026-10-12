@@ -6,8 +6,10 @@ import android.content.SharedPreferences;
 import android.util.Xml;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import org.json.JSONObject;
 import org.xmlpull.v1.XmlPullParser;
 
@@ -29,8 +31,9 @@ public final class LocalPrefs {
         Context app = context.getApplicationContext();
         if (app != null) context = app;
         File file = new File(context.getNoBackupFilesDir(), name + ".json");
-        JSONObject json = readJson(file);
-        if (json.length() == 0) {
+        Stored stored = readStored(file);
+        JSONObject json = stored.json;
+        if (!stored.present) {
             json = importShared(context, name);
             JSONObject disk = importXml(new File(context.getDataDir(), "shared_prefs/" + name + ".xml"));
             if (prefer(disk, json, name)) json = disk;
@@ -64,9 +67,11 @@ public final class LocalPrefs {
             catch (Exception failed) { throw new IllegalStateException("STATE_WRITE_FAILED", failed); }
         }
         public boolean commit() {
-            if (!writeJson(file, next)) return false;
-            json = next;
-            return true;
+            synchronized (LocalPrefs.this) {
+                if (!writeJson(file, next)) return false;
+                json = next;
+                return true;
+            }
         }
     }
 
@@ -79,30 +84,53 @@ public final class LocalPrefs {
         return current.length() == 0;
     }
 
-    private static JSONObject readJson(File file) {
-        if (!file.isFile()) return new JSONObject();
-        try {
-            byte[] bytes = new byte[(int) Math.min(file.length(), 32_768)];
-            try (FileInputStream in = new FileInputStream(file)) {
-                int n = in.read(bytes);
-                if (n <= 0) return new JSONObject();
-                return new JSONObject(new String(bytes, 0, n, StandardCharsets.UTF_8));
-            }
-        } catch (Exception ignored) {
-            return new JSONObject();
+    /** present 表示磁盘上已经有一份非空文件。解析失败时保留这份文件，打开路径不再拿旧的 SharedPreferences 盖掉它。 */
+    static final class Stored {
+        final JSONObject json;
+        final boolean present;
+        Stored(JSONObject json, boolean present) {
+            this.json = json;
+            this.present = present;
         }
     }
 
-    private static boolean writeJson(File file, JSONObject json) {
+    static Stored readStored(File file) {
+        if (!file.isFile() || file.length() == 0) return new Stored(new JSONObject(), false);
+        try {
+            byte[] bytes = Files.readAllBytes(file.toPath());
+            if (bytes.length == 0) return new Stored(new JSONObject(), false);
+            return new Stored(new JSONObject(new String(bytes, StandardCharsets.UTF_8)), true);
+        } catch (Exception failed) {
+            note("LOCAL_PREFS_READ_FAILED " + file.getName(), failed);
+            return new Stored(new JSONObject(), true);
+        }
+    }
+
+    static boolean writeJson(File file, JSONObject json) {
+        File dir = file.getParentFile();
+        if (dir != null) dir.mkdirs();
         File tmp = new File(file.getPath() + ".tmp");
-        try (FileOutputStream out = new FileOutputStream(tmp)) {
-            out.write(json.toString().getBytes(StandardCharsets.UTF_8));
-            out.getFD().sync();
+        try {
+            Files.write(tmp.toPath(), json.toString().getBytes(StandardCharsets.UTF_8));
+            try {
+                Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException unsupported) {
+                Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
+            return true;
         } catch (Exception failed) {
             tmp.delete();
+            note("LOCAL_PREFS_WRITE_FAILED " + file.getName(), failed);
             return false;
         }
-        return tmp.renameTo(file) || (file.delete() && tmp.renameTo(file));
+    }
+
+    private static void note(String line, Exception failed) {
+        try {
+            android.util.Log.w("OplusBandBridge", line, failed);
+        } catch (RuntimeException unavailable) {
+            // 单元测试里 android.util.Log 是空实现。
+        }
     }
 
     private static JSONObject importShared(Context context, String name) {
