@@ -387,7 +387,9 @@ final class OHealthSleepWriter {
             Object row = breathNew.newInstance();
             breathAccount.invoke(row, account);
             if (breathDeviceType != null) {
-                breathDeviceType.invoke(row, "Band");
+                android.os.Bundle band = OHealthDeviceHook.registeredSnapshot();
+                breathDeviceType.invoke(row, OHealthStepWriter.deviceCategory(
+                        band == null ? "" : band.getString("modelId", "")));
             }
             breathDevice.invoke(row, device);
             breathTime.invoke(row, record.startMs);

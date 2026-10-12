@@ -28,10 +28,12 @@ final class OHealthStepWriter {
     static final int TABLE_DETAIL = 1001;
     /** SportMode.WATCH_OR_BAND_DATA_ONLY_USED_READ. Official saveStatData stores the day here. */
     static final int DAY_STEP_MODE = -3;
-    /** SportMode.WALK. Minute bars keep the device minute type used by saveActivityData. */
+    /** SportMode.WALK. A band stores this minute type as-is. A watch remaps it. */
     static final int MINUTE_MODE = 1;
     /** DeviceCategory.BAND. The lowercase value is not a wearable, so the source list keeps only the phone. */
     static final String DEVICE_BAND = "Band";
+    /** DeviceCategory.WATCH. Same spelling the health library stores for a watch. */
+    static final String DEVICE_WATCH = "Watch";
     /** Phone import stores calories times 1000. The daily label divides by 1000 to show kilocalories. */
     static final int CALORIE_SCALE = 1000;
     static final int MINUTES_PER_DAY = 1_440;
@@ -42,13 +44,13 @@ final class OHealthStepWriter {
     private final Class<?> statClass;
     private final Constructor<?> statNew;
     private final Method setAccount, setDevice, setDate, setMode, setSteps, setTimezone;
-    private final Method setCalories, setDistance, setMoveAbout, setWorkoutMinutes, setSync, setUpdated;
+    private final Method setCalories, setDistance, setMoveAbout, setSync, setUpdated;
     private final Method getDevice, getDate, getMode, getSteps, getCalories, getMoveAbout;
     private boolean detailResolved;
     private Class<?> detailClass;
     private Constructor<?> detailNew;
     private Method detailAccount, detailDevice, detailStart, detailEnd, detailSteps, detailCalories;
-    private Method detailDistance, detailMode, detailDisplay, detailType, detailZone, detailWorkout, detailMove;
+    private Method detailDistance, detailMode, detailDisplay, detailType, detailZone;
     private Method detailGetStart, detailGetSteps, detailGetDevice;
 
     OHealthStepWriter(OHealthHealthImportHook.HostContract host) throws ReflectiveOperationException {
@@ -64,7 +66,6 @@ final class OHealthStepWriter {
         setCalories = statClass.getMethod("setTotalCalories", long.class);
         setDistance = statClass.getMethod("setTotalDistance", int.class);
         setMoveAbout = statClass.getMethod("setTotalMoveAboutTimes", int.class);
-        setWorkoutMinutes = statClass.getMethod("setTotalWorkoutMinutes", int.class);
         setSync = statClass.getMethod("setSyncStatus", int.class);
         setUpdated = statClass.getMethod("setUpdateTimestamp", long.class);
         getDevice = getter(statClass, "getDeviceUniqueId", String.class);
@@ -84,6 +85,7 @@ final class OHealthStepWriter {
         if (band == null || band.getString("deviceId", "").isBlank()) return;
         String queued = band.getString("deviceId");
         String device = OHealthDeviceHook.healthId(queued);
+        String category = deviceCategory(band.getString("modelId", ""));
         List<HealthRecord> records = history(context, account, queued);
         List<BandHistoryParser.StepDay> days = new ArrayList<>(BandHistoryParser.preferLiveTotal(
                 BandHistoryParser.stepDays(records), band.getLong("stepsToday", -1),
@@ -95,7 +97,7 @@ final class OHealthStepWriter {
         int skipped = 0;
         for (BandHistoryParser.StepDay day : days) {
             try {
-                if (writeStat(api, account, device, day, records, written)) inserted++;
+                if (writeStat(api, account, device, day, written)) inserted++;
                 else skipped++;
             } catch (Exception failure) {
                 skipped++;
@@ -105,7 +107,7 @@ final class OHealthStepWriter {
         int chart = 0;
         for (BandHistoryParser.StepDay day : days) {
             try {
-                chart += writeChart(api, account, device, day, records, written);
+                chart += writeChart(api, account, device, category, day, records, written);
             } catch (Exception failure) {
                 XposedBridge.log("OplusBandBridge OHEALTH_STEP_CHART_FAIL date=" + day.date + " " + failure);
             }
@@ -121,7 +123,7 @@ final class OHealthStepWriter {
                 }
             }
         }
-        publishToday(context, days, records);
+        publishToday(context, days);
         publishSnapshot(context);
         String summary = "OHEALTH_STEP_IMPORT days=" + days.size()
                 + " inserted=" + inserted + " skipped=" + skipped + " chart=" + chart;
@@ -130,7 +132,7 @@ final class OHealthStepWriter {
     }
 
     private boolean writeStat(Object api, String account, String device, BandHistoryParser.StepDay day,
-            List<HealthRecord> records, SharedPreferences written) throws Exception {
+            SharedPreferences written) throws Exception {
         String memory = "metric:" + device + ":" + day.date;
         String key = day.steps + ":" + day.calories + ":" + day.moveAbout + ":" + day.distance + ":milli";
         boolean changed = !key.equals(written.getString(memory, ""));
@@ -138,7 +140,7 @@ final class OHealthStepWriter {
             long end = day.startMs + 86_400_000L;
             List<?> existing = host.readStepDays(api, account, day.startMs, end, DAY_STEP_MODE);
             if (!covers(existing, device, day, DAY_STEP_MODE)) {
-                host.insertRows(api, TABLE_STAT, List.of(statRow(account, device, day, records, DAY_STEP_MODE)));
+                host.insertRows(api, TABLE_STAT, List.of(statRow(account, device, day, DAY_STEP_MODE)));
                 List<?> confirmed = host.readStepDays(api, account, day.startMs, end, DAY_STEP_MODE);
                 if (!covers(confirmed, device, day, DAY_STEP_MODE)) {
                     String miss = "OHEALTH_STEP_STAT_MISS date=" + day.date
@@ -156,8 +158,8 @@ final class OHealthStepWriter {
         return changed;
     }
 
-    private Object statRow(String account, String device, BandHistoryParser.StepDay day,
-            List<HealthRecord> records, int mode) throws ReflectiveOperationException {
+    private Object statRow(String account, String device, BandHistoryParser.StepDay day, int mode)
+            throws ReflectiveOperationException {
         Object row = statNew.newInstance();
         setAccount.invoke(row, account);
         setDevice.invoke(row, device);
@@ -170,7 +172,8 @@ final class OHealthStepWriter {
             setDistance.invoke(row, (int) day.distance);
         }
         if (day.moveAbout >= 0) setMoveAbout.invoke(row, (int) day.moveAbout);
-        setWorkoutMinutes.invoke(row, activeMinutes(records, day));
+        // The library's exercise minutes come from the device's totalExercise, not from
+        // counting minutes that merely have steps. This report does not carry that field.
         setSync.invoke(row, 0);
         setUpdated.invoke(row, day.startMs);
         return row;
@@ -219,11 +222,12 @@ final class OHealthStepWriter {
     }
 
     /** Inserts minute growth. The half-hour and hour charts group these rows. An hour blob is a different table. */
-    private int writeChart(Object api, String account, String device, BandHistoryParser.StepDay day,
-            List<HealthRecord> records, SharedPreferences written) throws Exception {
+    private int writeChart(Object api, String account, String device, String category,
+            BandHistoryParser.StepDay day, List<HealthRecord> records, SharedPreferences written)
+            throws Exception {
         if (!prepareDetail()) return 0;
         MinuteBar[] minutes = MinuteBar.day(records, day.startMs, day.timezone);
-        String version = device + ":" + day.date + ":minute-v1";
+        String version = device + ":" + day.date + ":minute-v2";
         boolean rebuild = !"1".equals(written.getString(version, ""));
         if (rebuild) {
             try {
@@ -245,12 +249,10 @@ final class OHealthStepWriter {
             int deltaCalories = bar.calories - saved[1];
             int deltaDistance = bar.distance - saved[2];
             if (deltaSteps <= 0 && deltaCalories <= 0 && deltaDistance <= 0) continue;
-            int workout = bar.steps > 0 && saved[0] <= 0 ? 1 : 0;
-            int move = bar.moveAbout > 0 && saved[0] <= 0 ? 1 : 0;
-            rows.add(detail(account, device, day, minute,
+            rows.add(detail(account, device, category, day, minute,
                     Math.max(0, deltaSteps),
                     Math.max(0, deltaCalories) * (long) CALORIE_SCALE,
-                    Math.max(0, deltaDistance), workout, move));
+                    Math.max(0, deltaDistance)));
             indexes.add(minute);
         }
         if (rows.isEmpty()) {
@@ -288,8 +290,8 @@ final class OHealthStepWriter {
         return stored;
     }
 
-    private Object detail(String account, String device, BandHistoryParser.StepDay day, int minute,
-            int steps, long calories, int distance, int workout, int moveAbout) throws ReflectiveOperationException {
+    private Object detail(String account, String device, String category, BandHistoryParser.StepDay day,
+            int minute, int steps, long calories, int distance) throws ReflectiveOperationException {
         Object row = detailNew.newInstance();
         detailAccount.invoke(row, account);
         detailDevice.invoke(row, device);
@@ -299,13 +301,38 @@ final class OHealthStepWriter {
         detailSteps.invoke(row, steps);
         detailCalories.invoke(row, calories);
         detailDistance.invoke(row, distance);
-        detailWorkout.invoke(row, workout);
-        detailMove.invoke(row, moveAbout);
-        detailMode.invoke(row, MINUTE_MODE);
+        // No minuteExercise bit in the Xiaomi activity file, so workout stays unset.
+        // A watch remaps walk (1) to -1, which keeps those minutes out of the phone walk bucket.
+        detailMode.invoke(row, minuteSportMode(DEVICE_WATCH.equals(category)));
         detailDisplay.invoke(row, 1);
-        detailType.invoke(row, DEVICE_BAND);
+        detailType.invoke(row, category);
         if (day.timezone != null) detailZone.invoke(row, day.timezone);
         return row;
+    }
+
+    /** {@code DeviceCategory} string for a Xiaomi model. Unknown models stay a band. */
+    static String deviceCategory(String modelId) {
+        return io.github.miam1ku.mibandoplusbridge.data.BandCatalog.healthCategory(modelId);
+    }
+
+    /** Walk minutes on a watch use the library remap. A band keeps type 1. */
+    static int minuteSportMode(boolean watch) {
+        return watch ? groupSportType(MINUTE_MODE) : MINUTE_MODE;
+    }
+
+    /** {@code DataUtils.groupSportType}. Watch daily-activity minutes go through this. */
+    static int groupSportType(int type) {
+        return switch (type) {
+            case 0 -> 6;
+            case 1 -> -1;
+            case 2 -> 1;
+            case 4, 5 -> 5;
+            case 6 -> 2;
+            case 7 -> 3;
+            case 8 -> 4;
+            case 9 -> 7;
+            default -> 0;
+        };
     }
 
     private boolean prepareDetail() {
@@ -321,8 +348,6 @@ final class OHealthStepWriter {
             detailSteps = detailClass.getMethod("setSteps", int.class);
             detailCalories = detailClass.getMethod("setCalories", long.class);
             detailDistance = detailClass.getMethod("setDistance", int.class);
-            detailWorkout = detailClass.getMethod("setWorkout", int.class);
-            detailMove = detailClass.getMethod("setMoveAbout", int.class);
             detailMode = detailClass.getMethod("setSportMode", int.class);
             detailDisplay = detailClass.getMethod("setDisplay", int.class);
             detailType = detailClass.getMethod("setDeviceType", String.class);
@@ -378,8 +403,7 @@ final class OHealthStepWriter {
         updateSportCache(context, values, steps);
     }
 
-    private void publishToday(Context context, List<BandHistoryParser.StepDay> days,
-            List<HealthRecord> records) {
+    private void publishToday(Context context, List<BandHistoryParser.StepDay> days) {
         BandHistoryParser.StepDay today = null;
         for (BandHistoryParser.StepDay day : days) {
             if (isToday(day)) today = day;
@@ -389,7 +413,6 @@ final class OHealthStepWriter {
         values.put("step", today.steps);
         if (today.calories >= 0) values.put("calorie", (double) today.calories);
         if (today.distance >= 0) values.put("distance", today.distance / 1000.0);
-        values.put("duration", (double) activeMinutes(records, today));
         if (today.moveAbout >= 0 && today.moveAbout <= Integer.MAX_VALUE) {
             values.put("activityCount", (int) today.moveAbout);
         }
@@ -425,28 +448,16 @@ final class OHealthStepWriter {
         return today == day.date;
     }
 
-    private static int activeMinutes(List<HealthRecord> records, BandHistoryParser.StepDay day) {
-        int active = 0;
-        for (MinuteBar bar : MinuteBar.day(records, day.startMs, day.timezone)) {
-            if (bar != null && bar.steps > 0) active++;
-        }
-        return active;
-    }
-
-    /** One local day of minute bars. Workout is one minute; move-about marks the first active minute of an hour. */
+    /** One local day of minute bars. Exercise and stand counts stay on the daily report. */
     static final class MinuteBar {
         final int steps;
         final int calories;
         final int distance;
-        final int workout;
-        final int moveAbout;
 
-        MinuteBar(int steps, int calories, int distance, int workout, int moveAbout) {
+        MinuteBar(int steps, int calories, int distance) {
             this.steps = steps;
             this.calories = calories;
             this.distance = distance;
-            this.workout = workout;
-            this.moveAbout = moveAbout;
         }
 
         static MinuteBar[] day(List<HealthRecord> records, long dayStart, String timezone) {
@@ -471,18 +482,7 @@ final class OHealthStepWriter {
             MinuteBar[] bars = new MinuteBar[MINUTES_PER_DAY];
             for (int minute = 0; minute < MINUTES_PER_DAY; minute++) {
                 if (!seen[minute] || (steps[minute] <= 0 && calories[minute] <= 0 && distance[minute] <= 0)) continue;
-                boolean firstActiveHour = steps[minute] > 0;
-                if (firstActiveHour) {
-                    int hourStart = minute / 60 * 60;
-                    for (int earlier = hourStart; earlier < minute; earlier++) {
-                        if (bars[earlier] != null && bars[earlier].steps > 0) {
-                            firstActiveHour = false;
-                            break;
-                        }
-                    }
-                }
-                bars[minute] = new MinuteBar(steps[minute], calories[minute], distance[minute],
-                        steps[minute] > 0 ? 1 : 0, firstActiveHour ? 1 : 0);
+                bars[minute] = new MinuteBar(steps[minute], calories[minute], distance[minute]);
             }
             return bars;
         }

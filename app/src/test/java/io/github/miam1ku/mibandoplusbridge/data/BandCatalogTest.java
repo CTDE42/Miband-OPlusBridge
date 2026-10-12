@@ -28,6 +28,11 @@ public final class BandCatalogTest {
         assertEquals("default_watch", BandCatalog.spaceIcon("miwear.watch.p65"));
         assertFalse(BandCatalog.watchForm("lchz.watch.m67"));
         assertTrue(BandCatalog.watchForm("hqbd3.watch.l67"));
+        assertEquals("Band", BandCatalog.healthCategory("miwear.watch.n66gl"));
+        assertEquals("Band", BandCatalog.healthCategory("mijia.watch.band01"));
+        assertEquals("Watch", BandCatalog.healthCategory("miwear.watch.q65acn"));
+        assertEquals("Watch", BandCatalog.healthCategory("mijia.watch.n62lte"));
+        assertEquals("Band", BandCatalog.healthCategory("future.watch.z99"));
         assertEquals("小米手环10", BandCatalog.displayName("miwear.watch.o66cn", ""));
         assertEquals("小米手环10 NFC", BandCatalog.displayName("miwear.watch.o66gln", ""));
         assertEquals("小米手环10 Pro", BandCatalog.displayName("miwear.watch.p67cn", "Xiaomi Smart Band 10 Pro 9C00"));

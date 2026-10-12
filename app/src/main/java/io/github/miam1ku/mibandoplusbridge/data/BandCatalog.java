@@ -82,6 +82,14 @@ public final class BandCatalog {
             {"miwear.watch.q65", "REDMI Watch 6 活力版", "watch"},
     };
 
+    /**
+     * OPPO health row category ({@code DeviceCategory.BAND} or {@code WATCH}).
+     * An unknown model stays {@code Band}, the same fallback as the wristband card.
+     */
+    public static String healthCategory(String model) {
+        return watchForm(model) ? "Watch" : "Band";
+    }
+
     /** Device-space card type. Bands use the system wristband glyph, watches use the watch glyph. */
     public static String spaceType(String model) {
         return watchForm(model) ? "WATCH" : "WRISTBAND";

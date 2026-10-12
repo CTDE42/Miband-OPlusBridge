@@ -64,7 +64,7 @@ final class OHealthSportWriter {
         for (HealthRecord record : history(context, account, queued, "sport_session")) {
             HealthRecord track = match(record, tracks);
             String key = device + ":" + record.recordId;
-            String mark = record.revision + ":" + (track == null ? 0 : track.track.length()) + ":u4";
+            String mark = record.revision + ":" + (track == null ? 0 : track.track.length()) + ":u5";
             String saved;
             try {
                 saved = written.getString(key, "");
@@ -73,7 +73,8 @@ final class OHealthSportWriter {
             }
             if (mark.equals(saved)) continue;
             try {
-                if (store(api, account, device, record, track, !saved.isEmpty())) {
+                if (store(api, account, device, OHealthStepWriter.deviceCategory(band.getString("modelId", "")),
+                        record, track, !saved.isEmpty())) {
                     if (!written.edit().putString(key, mark).commit()) {
                         throw new IllegalStateException("SPORT_IMPORT_MEMORY_FAILED");
                     }
@@ -93,13 +94,13 @@ final class OHealthSportWriter {
         return best;
     }
 
-    private boolean store(Object api, String account, String device, HealthRecord record,
+    private boolean store(Object api, String account, String device, String category, HealthRecord record,
             HealthRecord track, boolean replace) throws Exception {
         int mode = record.value.intValue();
         Object row = created.newInstance();
         setAccount.invoke(row, account);
         setDevice.invoke(row, device);
-        setType.invoke(row, OHealthStepWriter.DEVICE_BAND);
+        setType.invoke(row, category);
         setStart.invoke(row, record.startMs);
         setEnd.invoke(row, record.endMs);
         setMode.invoke(row, mode);

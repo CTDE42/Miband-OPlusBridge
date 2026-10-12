@@ -4,6 +4,7 @@ package io.github.miam1ku.mibandoplusbridge.protocol;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -82,8 +83,8 @@ public final class SportGpsParser {
 
     /**
      * Band 8 Pro GPS v2. One flag byte, then points until the CRC.
-     * After time, longitude and latitude the tail is a speed float and a uint16.
-     * The top three flag bits are set on a real file and are not more fields.
+     * After time, longitude and latitude the tail is a speed float in metres per
+     * second and a uint16. The top three flag bits are set on a real file and are not more fields.
      */
     private static Track parseFixedStride(byte[] bytes, int validityBytes, int speedBytes, int tailBytes) {
         int end = bytes.length - 4;
@@ -110,8 +111,8 @@ public final class SportGpsParser {
             at += 4;
             double metersPerSecond = 0;
             if (speed && speedBytes == 4) {
-                float kmh = leFloat(bytes, at);
-                if (Float.isFinite(kmh) && kmh > 0f && kmh < 200f) metersPerSecond = kmh / 3.6d;
+                float reading = leFloat(bytes, at);
+                if (Float.isFinite(reading) && reading > 0f && reading < 80f) metersPerSecond = reading;
             }
             cursor += stride;
             if (!Float.isFinite(lat) || !Float.isFinite(lon) || lat < -90f || lat > 90f || lon < -180f || lon > 180f) {
@@ -143,22 +144,36 @@ public final class SportGpsParser {
             return null;
         }
         if (stride < 5 || (part.length - 1) % stride != 0) return null;
+        double[] speeds = new double[(part.length - 1) / stride];
+        int count = 0;
+        for (int i = 1 + stride; i + 4 < part.length; i += stride) {
+            double speed = speedAt(part, i + 4);
+            if (speed > 0) speeds[count++] = speed;
+        }
+        if (count < 2) return null;
+        double[] ordered = Arrays.copyOf(speeds, count);
+        Arrays.sort(ordered);
+        // One GPS spike of 40 m/s becomes 144 km/h and stretches the chart until the ride disappears.
+        double cap = Math.max(ordered[count / 2] * 4d, 6d);
         StringBuilder body = new StringBuilder("2,0,0");
         int points = 0;
         for (int i = 1 + stride; i + 4 < part.length; i += stride) {
-            double speed;
-            try {
-                speed = Double.parseDouble(part[i + 4]);
-            } catch (NumberFormatException invalid) {
-                continue;
-            }
-            if (speed < 0.3d || speed > 40d) continue;
+            double speed = speedAt(part, i + 4);
+            if (speed < 0.3d || speed > cap) continue;
             int pace = (int) Math.round(1000.0d / speed);
             if (pace < 30 || pace > 7200) continue;
             body.append(',').append(part[i]).append(',').append(pace);
             points++;
         }
         return points < 2 ? null : body.toString();
+    }
+
+    private static double speedAt(String[] part, int index) {
+        try {
+            return Double.parseDouble(part[index]);
+        } catch (NumberFormatException invalid) {
+            return 0;
+        }
     }
 
     /** Fastest plausible pace in a {@link #paceSeries} string, or null. */

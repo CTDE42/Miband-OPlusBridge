@@ -885,7 +885,47 @@ public final class BandHistoryParserTest {
             assertTrue(pace != null && pace.startsWith("2,0,0,"));
             int fastest = io.github.miam1ku.mibandoplusbridge.protocol.SportGpsParser.fastestPace(pace);
             assertTrue(fastest >= 30 && fastest <= 400);
+            assertRideSpeedChart(ride.measurements.get(0), track.measurements.get(0));
         }
+    }
+
+    /**
+     * Health draws the ride speed chart as 3600/pace, in km/h, on an axis of seconds.
+     * The GPS float is metres per second. Dividing it by 3.6 first pins the line to the axis floor.
+     */
+    private static void assertRideSpeedChart(BandHistoryParser.Measurement session,
+            BandHistoryParser.Measurement track) {
+        String pace = io.github.miam1ku.mibandoplusbridge.protocol.SportGpsParser.paceSeries(track.track);
+        String[] part = pace.split(",");
+        int stride = Integer.parseInt(part[0]);
+        assertEquals(2, stride);
+        java.util.List<Double> kmh = new java.util.ArrayList<>();
+        int onAxis = 0;
+        long minRelative = Long.MAX_VALUE;
+        long maxRelative = Long.MIN_VALUE;
+        long durationMs = session.duration * 1000L;
+        double axisSeconds = durationMs / 1000.0;
+        for (int i = stride + 1; i <= part.length - stride; i += stride) {
+            long timestamp = Long.parseLong(part[i]);
+            int secondsPerKm = Integer.parseInt(part[i + 1]);
+            long relative = timestamp - session.startMs;
+            minRelative = Math.min(minRelative, relative);
+            maxRelative = Math.max(maxRelative, relative);
+            if (relative / 1000.0 >= -30 && relative / 1000.0 <= axisSeconds + 30) onAxis++;
+            kmh.add(3600.0 / secondsPerKm);
+        }
+        assertTrue(kmh.size() >= 500);
+        // GPS wall time runs past totalDuration because pauses stay in the timestamps.
+        // The chart axis is the summary duration, so the line is the points inside that window.
+        assertTrue("on axis " + onAxis + "/" + kmh.size()
+                + " relative " + (minRelative / 1000) + ".." + (maxRelative / 1000)
+                + " axis " + axisSeconds,
+                onAxis >= 500);
+        java.util.Collections.sort(kmh);
+        double median = kmh.get(kmh.size() / 2);
+        double expected = session.distance * 3.6 / session.duration;
+        assertTrue(Math.abs(median - expected) / expected < 0.15);
+        assertTrue(kmh.get(kmh.size() - 1) <= median * 4.5);
     }
 
     private static byte[] zipEntry(java.util.zip.ZipFile archive, String prefix) throws Exception {
